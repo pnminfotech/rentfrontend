@@ -215,19 +215,19 @@ export default function AttendanceCard() {
 
   // Show Check-In only if there's a pending late request for *today*
  const hasPendingToday = useMemo(
-  () => records.some((r) => r.status === "pending"),
-  [records]
+  () => records.some((r) => r.dateKey === todayKey && r.status === "pending" && r.approvalStatus === "approved"),
+  [records, todayKey]
 );
 
 
-  const post = async (path, body) => {
+  const post = async (path, body, successMessage = "Saved successfully.") => {
     setBusy(true);
     setMsg("");
     try {
       await axios.post(`${API}${path}`, body, {
         headers: { ...authHeader(), "Content-Type": "application/json" },
       });
-      setMsg("Saved successfully.");
+      setMsg(successMessage);
       await loadRecords();
     } catch (e) {
       setMsg(e?.response?.data?.message || e.message || "Failed");
@@ -247,13 +247,17 @@ export default function AttendanceCard() {
     }
   };
 
-  useEffect(() => { loadRecords(); }, []);
+  useEffect(() => {
+    loadRecords();
+    const timer = setInterval(loadRecords, 15000);
+    return () => clearInterval(timer);
+  }, []);
 
   // ---------- actions ----------
   const sendLate = async () => {
     if (!form.date || !form.time) return setMsg("Please select both date and time.");
     console.log("Sending Late Request body:", form);
-    await post("/tenant/attendance/late", form);
+    await post("/tenant/attendance/late", form, "Late-entry request sent to the admin for approval.");
     setForm({ date: "", time: "", reason: "" });
   };
 
@@ -264,10 +268,10 @@ export default function AttendanceCard() {
 
   // ---------- UI ----------
   return (
-    <div className="card shadow-sm">
+    <div className="card shadow-sm tenant-late-entry-page">
       {/* Header with conditional Check-in button (desktop) */}
       <div className="card-header d-flex justify-content-between align-items-center">
-        <strong>Attendance</strong>
+        <div><strong>Late entry</strong><small>Let the owner know if you expect to arrive late.</small></div>
         {hasPendingToday && (
           <button
             className="btn btn-success btn-sm d-none d-md-inline-flex"
@@ -275,7 +279,7 @@ export default function AttendanceCard() {
             disabled={busy}
             title="Check In with current location"
           >
-            Check In (with GPS)
+            Check in
           </button>
         )}
       </div>
@@ -288,16 +292,18 @@ export default function AttendanceCard() {
             onClick={checkIn}
             disabled={busy}
           >
-            Check In (with GPS)
+            Check in
           </button>
         )}
 
         {/* Late Scheduling Form */}
         <div className="mb-3">
-          <h6>Schedule a Late Check-in</h6>
+          <h6>Send a late entry request</h6>
           <div className="row g-2 mb-2">
             <div className="col">
+              <label className="form-label" htmlFor="late-entry-date">Date</label>
               <input
+                id="late-entry-date"
                 type="date"
                 className="form-control"
                 value={form.date}
@@ -305,7 +311,9 @@ export default function AttendanceCard() {
               />
             </div>
             <div className="col">
+              <label className="form-label" htmlFor="late-entry-time">Expected time</label>
               <input
+                id="late-entry-time"
                 type="time"
                 className="form-control"
                 value={form.time}
@@ -320,24 +328,24 @@ export default function AttendanceCard() {
             onChange={(e) => setForm((f) => ({ ...f, reason: e.target.value }))}
           />
           <button className="btn btn-warning w-100" onClick={sendLate} disabled={busy}>
-            Submit Late Request
+            {busy ? "Sending..." : "Send request"}
           </button>
         </div>
 
         {!!msg && <div className="text-muted mt-2">{msg}</div>}
-        <div className="form-text mt-1">* Location requires HTTPS or localhost.</div>
+        <div className="form-text mt-1">You can check in after the admin approves your request.</div>
 
         <hr />
 
         {/* Records Table */}
-        <h6>Recent Late / Attendance Records</h6>
+        <h6>Recent requests</h6>
         <div className="table-responsive">
           <table className="table table-sm align-middle mb-0">
             <thead className="table-light">
               <tr>
                 <th>Date</th>
                 <th>Scheduled Time</th>
-                <th>Reason</th>
+                <th>Note</th>
                 <th>Status</th>
                 <th>Check-in Time</th>
                 <th>Location</th>
@@ -352,9 +360,14 @@ export default function AttendanceCard() {
                       ? new Date(r.scheduledAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
                       : "-"}
                   </td>
-                  <td>{r.lateReason || "-"}</td>
                   <td>
-                    {r.status === "pending" && <span className="badge bg-warning text-dark">Pending</span>}
+                    {r.lateReason || "-"}
+                    {r.approvalNote && <div className="small text-muted mt-1">Admin note: {r.approvalNote}</div>}
+                  </td>
+                  <td>
+                    {r.status === "pending" && !["approved", "rejected"].includes(r.approvalStatus) && <span className="badge bg-warning text-dark">Waiting for approval</span>}
+                    {r.status === "pending" && r.approvalStatus === "approved" && <span className="badge bg-success">Approved — check in when you arrive</span>}
+                    {r.status === "pending" && r.approvalStatus === "rejected" && <span className="badge bg-danger">Rejected</span>}
                     {r.status === "checked_in" && <span className="badge bg-success">Reached</span>}
                     {r.status === "checked_out" && <span className="badge bg-secondary">Checked Out</span>}
                   </td>

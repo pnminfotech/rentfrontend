@@ -1,32 +1,46 @@
-import React, { useState } from "react";
-import axios from "axios";
-import { API, authHeader } from "../tenantApi";
+import { FiBell, FiCalendar } from "react-icons/fi";
 
-export default function TenantLeave({ me, onChanged }) {
-  const [leaveDate, setLeaveDate] = useState("");
-  const card = { background:"#fff", borderRadius:14, boxShadow:"0 8px 30px rgba(16,24,40,.06)", padding:16, marginBottom:16 };
+function announcementDate(item) {
+  const value = item?.createdAt || item?.date || item?.publishedAt;
+  if (!value) return "";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? ""
+    : date.toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
+}
 
-  const submit = async () => {
-    if (!leaveDate) return alert("Pick a date");
-    await axios.post(`${API}/tenant/leave`, { leaveDate }, { headers: authHeader() });
-    setLeaveDate(""); onChanged && onChanged();
-    alert("Leave request submitted");
-  };
+export default function TenantAnnouncements({ ann = [] }) {
+  const items = Array.isArray(ann) ? ann : [];
 
   return (
-    <div style={card}>
-      <h5 style={{ margin:0, marginBottom:10 }}>Leave Request</h5>
-      <div style={{ color:"#6b7280", fontSize:12, marginBottom:8 }}>
-        Proposed leave date. Admin will review & confirm.
+    <section className="tenant-announcements-page">
+      <div className="tenant-announcements-intro">
+        <span className="tenant-announcements-icon"><FiBell /></span>
+        <div>
+          <h1>Announcements</h1>
+          <p>Updates and important notices from your property administrator.</p>
+        </div>
       </div>
-      <input type="date" value={leaveDate} onChange={e=>setLeaveDate(e.target.value)} style={{ marginBottom:10 }}/>
-      <button onClick={submit} style={btnWarn}>Submit</button>
-      {me?.leaveRequestDate && (
-        <div style={{ marginTop:10, fontSize:12 }}>
-          Last requested: <b>{new Date(me.leaveRequestDate).toLocaleDateString("en-GB")}</b>
+
+      {items.length ? (
+        <div className="tenant-announcements-list">
+          {items.map((item, index) => (
+            <article className="tenant-announcement-card" key={item?._id || item?.id || index}>
+              <div className="tenant-announcement-card-top">
+                <h2>{item?.title || item?.subject || "Property update"}</h2>
+                {announcementDate(item) && <span><FiCalendar /> {announcementDate(item)}</span>}
+              </div>
+              <p>{item?.message || item?.body || item?.content || "No details provided."}</p>
+            </article>
+          ))}
+        </div>
+      ) : (
+        <div className="tenant-announcements-empty">
+          <span><FiBell /></span>
+          <h2>You’re all caught up</h2>
+          <p>There are no announcements right now. New notices from your property will appear here.</p>
         </div>
       )}
-    </div>
+    </section>
   );
 }
-const btnWarn = { padding:"8px 12px", border:0, borderRadius:10, background:"#f59e0b", color:"#fff", cursor:"pointer" };

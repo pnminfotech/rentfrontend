@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import {
   FiBarChart2,
   FiBell,
+  FiCalendar,
   FiCreditCard,
   FiLogOut,
   FiMenu,
@@ -28,6 +29,7 @@ import {
   getSecurityPinStatus,
   getSystemAdminUsers,
   getSuperAdminDashboard,
+  updateOrganizationTrialPeriod,
   requestPasswordReset,
   requestSuperadminEmailChange,
   resendSuperadminEmailChangeCode,
@@ -53,6 +55,15 @@ function formatDate(value) {
   return Number.isNaN(date.getTime())
     ? String(value)
     : date.toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function dateInputValue(value) {
+  const date = value ? new Date(value) : new Date();
+  if (Number.isNaN(date.getTime())) return "";
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function statusText(value) {
@@ -95,8 +106,8 @@ function SummaryCard({ label, value, icon, color, onClick }) {
   );
 }
 
-function OrganizationTable({ title, organizations, emptyText, onChangeStatus, onManageUnits }) {
-  const showActions = Boolean(onChangeStatus || onManageUnits);
+function OrganizationTable({ title, organizations, emptyText, onChangeStatus, onManageUnits, onUpdateTrial }) {
+  const showActions = Boolean(onChangeStatus || onManageUnits || onUpdateTrial);
   return (
     <div className="card border-0 shadow-sm mt-3">
       <div className="card-body">
@@ -141,7 +152,7 @@ function OrganizationTable({ title, organizations, emptyText, onChangeStatus, on
                         {statusText(org.status)}
                       </span>
                     </td>
-                    {showActions && <td className="text-nowrap">{onManageUnits && <button className="btn btn-sm btn-outline-primary me-1" onClick={() => onManageUnits(org)}>Manage units</button>}{onChangeStatus && <button className={`btn btn-sm ${org.status === "suspended" ? "btn-outline-success" : "btn-outline-danger"}`} onClick={() => onChangeStatus(org)}>{org.status === "suspended" ? "Reactivate" : "Suspend"}</button>}</td>}
+                    {showActions && <td className="text-nowrap">{onUpdateTrial && isTrialOrganization(org) && <button className="btn btn-sm btn-outline-warning me-1" onClick={() => onUpdateTrial(org)}><FiCalendar className="me-1" />Update trial</button>}{onManageUnits && <button className="btn btn-sm btn-outline-primary me-1" onClick={() => onManageUnits(org)}>Manage units</button>}{onChangeStatus && <button className={`btn btn-sm ${org.status === "suspended" ? "btn-outline-success" : "btn-outline-danger"}`} onClick={() => onChangeStatus(org)}>{org.status === "suspended" ? "Reactivate" : "Suspend"}</button>}</td>}
                   </tr>
                 );
               })}
@@ -188,6 +199,10 @@ export default function SuperAdminHome() {
   const [supportUnits, setSupportUnits] = useState([]);
   const [supportLoading, setSupportLoading] = useState(false);
   const [supportAction, setSupportAction] = useState("");
+  const [trialOrganization, setTrialOrganization] = useState(null);
+  const [trialEndDate, setTrialEndDate] = useState("");
+  const [trialSecurityPin, setTrialSecurityPin] = useState("");
+  const [savingTrialPeriod, setSavingTrialPeriod] = useState(false);
 
   const trialOrganizations = useMemo(
     () => organizations.filter((org) => isTrialOrganization(org)),
@@ -278,6 +293,31 @@ export default function SuperAdminHome() {
     if (!securityPin) return;
     try { await updateOrganizationStatus(org._id, org.status === "suspended" ? "active" : "suspended", securityPin); await load({ silent: true }); }
     catch (err) { setError(err.response?.data?.message || "Unable to update account status."); }
+  }
+
+  function openTrialPeriodEditor(org) {
+    setError("");
+    setTrialOrganization(org);
+    setTrialEndDate(dateInputValue(org.subscription?.endDate));
+    setTrialSecurityPin("");
+  }
+
+  async function saveTrialPeriod(event) {
+    event.preventDefault();
+    if (!trialOrganization || !trialEndDate || !trialSecurityPin.trim()) return;
+    try {
+      setError("");
+      setSavingTrialPeriod(true);
+      const result = await updateOrganizationTrialPeriod(trialOrganization._id, trialEndDate, trialSecurityPin.trim());
+      setTrialOrganization(null);
+      setTrialSecurityPin("");
+      setActionMessage(result?.message || "Trial period updated.");
+      await load({ silent: true });
+    } catch (err) {
+      setError(err.response?.data?.message || "Unable to update trial period.");
+    } finally {
+      setSavingTrialPeriod(false);
+    }
   }
 
   async function openSupportUnits(org) {
@@ -446,6 +486,7 @@ export default function SuperAdminHome() {
         emptyText="No accounts yet."
         onChangeStatus={changeOrganizationStatus}
         onManageUnits={openSupportUnits}
+        onUpdateTrial={openTrialPeriodEditor}
       />
     </>
   );
@@ -473,6 +514,7 @@ export default function SuperAdminHome() {
           emptyText="No trial accounts found."
           onChangeStatus={changeOrganizationStatus}
           onManageUnits={openSupportUnits}
+          onUpdateTrial={openTrialPeriodEditor}
         />
       );
     }
@@ -638,6 +680,33 @@ export default function SuperAdminHome() {
         </div>
 
         {renderSection()}
+        {trialOrganization ? (
+          <div className="modal d-block" role="dialog" aria-modal="true" style={{ backgroundColor: "rgba(15, 23, 42, 0.48)" }}>
+            <form className="modal-dialog modal-dialog-centered" role="document" onSubmit={saveTrialPeriod}>
+              <div className="modal-content">
+                <div className="modal-header">
+                  <div>
+                    <h5 className="modal-title mb-1">Update trial period</h5>
+                    <div className="small text-muted">{trialOrganization.name || "Trial account"}</div>
+                  </div>
+                  <button type="button" className="btn-close" onClick={() => setTrialOrganization(null)} aria-label="Close" disabled={savingTrialPeriod} />
+                </div>
+                <div className="modal-body">
+                  <p className="small text-muted">Choose the last day this system admin can use the trial. Extending an expired trial restores access; setting a past date marks it expired.</p>
+                  {error && <div className="alert alert-danger" role="alert">{error}</div>}
+                  <label className="form-label" htmlFor="superadmin-trial-end-date">Trial end date</label>
+                  <input id="superadmin-trial-end-date" className="form-control mb-3" type="date" required value={trialEndDate} onChange={(event) => setTrialEndDate(event.target.value)} />
+                  <label className="form-label" htmlFor="superadmin-trial-pin">Superadmin security PIN</label>
+                  <input id="superadmin-trial-pin" className="form-control" type="password" inputMode="numeric" autoComplete="current-password" minLength="4" maxLength="8" required value={trialSecurityPin} onChange={(event) => setTrialSecurityPin(event.target.value.replace(/\D/g, "").slice(0, 8))} />
+                </div>
+                <div className="modal-footer">
+                  <button type="button" className="btn btn-outline-secondary" onClick={() => setTrialOrganization(null)} disabled={savingTrialPeriod}>Cancel</button>
+                  <button type="submit" className="btn btn-primary" disabled={savingTrialPeriod || !trialEndDate || trialSecurityPin.length < 4}>{savingTrialPeriod ? "Updating..." : "Save trial period"}</button>
+                </div>
+              </div>
+            </form>
+          </div>
+        ) : null}
         {supportOrganization ? (
           <div className="modal d-block" role="dialog" aria-modal="true" style={{ backgroundColor: "rgba(15, 23, 42, 0.48)" }}>
             <div className="modal-dialog modal-lg modal-dialog-scrollable" role="document">

@@ -46,6 +46,10 @@ const attendanceP = axios.get(`${apiUrl}admin/notifications/attendance`);
 
 const [payRes, leaveRes, attRes] = await Promise.allSettled([payP, leaveP, attendanceP]);
 
+if (attRes.status === "rejected") {
+  setErr(attRes.reason?.response?.data?.message || "Could not load attendance notifications. Please refresh or sign in again.");
+}
+
 const payments =
   payRes.status === "fulfilled" && Array.isArray(payRes.value.data)
     ? payRes.value.data.map((p) => ({ ...p, type: "payment" }))
@@ -126,6 +130,13 @@ setItems(combined);
     const id = notif.requestId || notif._id;
     await axios.post(`${apiUrl}admin/leave/${id}/reject`, {});
     setItems((prev) => prev.filter((x) => x._id !== notif._id));
+  };
+
+  const reviewAttendance = async (notif, decision) => {
+    const note = window.prompt(decision === "approve" ? "Optional note for the tenant:" : "Reason for rejecting this request:", "");
+    if (note === null) return;
+    await axios.post(`${apiUrl}admin/notifications/${notif._id}/${decision}`, { note });
+    setItems((prev) => prev.filter((item) => item._id !== notif._id));
   };
 
   // --- Mark seen (attendance/system) ---
@@ -214,7 +225,7 @@ const markSeen = async (id) => {
 
           {loading && <div className="text-muted px-2 py-1">Loading…</div>}
           {err && <div className="text-danger px-2 py-1">{err}</div>}
-          {items.length === 0 && !loading && (
+          {items.length === 0 && !loading && !err && (
             <div className="text-muted px-2 py-2">No new notifications</div>
           )}
 
@@ -268,18 +279,23 @@ const markSeen = async (id) => {
                     {n.payload.reason && (
                       <div className="small text-muted">Reason: {n.payload.reason}</div>
                     )}
+                    {n.payload.scheduledAt && n.payload.kind === "attendance_late" && (
+                      <div className="small text-muted">Expected arrival: <b>{new Date(n.payload.scheduledAt).toLocaleString()}</b></div>
+                    )}
                     {where.accuracy && (
                       <div className="small text-muted">
                         Accuracy ±{Math.round(where.accuracy)} m
                       </div>
                     )}
                     <div className="d-flex gap-2 mt-2">
-                      <button
-                        className="btn btn-sm btn-outline-secondary"
-                        onClick={() => markSeen(n._id)}
-                      >
-                        Acknowledge
-                      </button>
+                      {n.payload.kind === "attendance_late" && n.payload.status === "pending" ? (
+                        <>
+                          <button className="btn btn-sm btn-success" onClick={() => reviewAttendance(n, "approve")}>Approve</button>
+                          <button className="btn btn-sm btn-outline-danger" onClick={() => reviewAttendance(n, "reject")}>Reject</button>
+                        </>
+                      ) : (
+                        <button className="btn btn-sm btn-outline-secondary" onClick={() => markSeen(n._id)}>Acknowledge</button>
+                      )}
                     </div>
                   </>
                 ) : isLeave ? (

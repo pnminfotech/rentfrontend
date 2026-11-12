@@ -202,6 +202,7 @@ import html2canvas from "html2canvas";
 import "../Maintanace/FormDownload.css";
 import Img from "../../image/kplogo.png";
 import { api } from "../../api";
+import { getOwnerDocuments } from "../../saasApi";
 
 const FormDownload = ({ formData }) => {
   const [roomMeta, setRoomMeta] = useState({
@@ -212,6 +213,7 @@ const FormDownload = ({ formData }) => {
   });
 
   const [tenantDoc, setTenantDoc] = useState(null);
+  const [businessLogo, setBusinessLogo] = useState("");
   const [photoDataUrl, setPhotoDataUrl] = useState("");
   const [documentDataUrls, setDocumentDataUrls] = useState({});
   const [previewImage, setPreviewImage] = useState(null);
@@ -300,7 +302,7 @@ const FormDownload = ({ formData }) => {
     return pages;
   }, [hostelRules.content]);
 
-  const BASE_URL = "   https://rentmobile-api.pnminfotech.com/";
+  const BASE_URL = " http://localhost:8000/";
 
   useEffect(() => {
     let cancelled = false;
@@ -376,6 +378,18 @@ const FormDownload = ({ formData }) => {
       return "";
     }
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    getOwnerDocuments().then(async (documents) => {
+      const logoUrl = documents?.logo?.url || "";
+      const logoDataUrl = logoUrl ? await toDataUrl(logoUrl) : "";
+      if (active) setBusinessLogo(logoDataUrl || logoUrl);
+    }).catch(() => {
+      if (active) setBusinessLogo("");
+    });
+    return () => { active = false; };
+  }, [toDataUrl]);
 
   const openPreviewImage = useCallback((src, title) => {
     setPreviewRotation(0);
@@ -619,7 +633,7 @@ const FormDownload = ({ formData }) => {
       return ct.startsWith("image/") || /\.(png|jpe?g|webp|gif)$/i.test(name);
     };
 
-    const BASE_URL = "   https://rentmobile-api.pnminfotech.com/"; // change to your backend URL
+    const BASE_URL = " http://localhost:8000/"; // change to your backend URL
 
     const getUrl = (d) => {
       const raw =
@@ -710,7 +724,7 @@ const FormDownload = ({ formData }) => {
     <div>
       <div id="form-page" className="form-container form-admission-page" data-pdf-page="true">
         <header className="form-header">
-          <img src={Img} alt="Logo" className="form-logo" />
+          <img src={businessLogo || Img} alt={businessLogo ? "Business logo" : "Logo"} className="form-logo" />
           <div className="form-title">
             <div className="form-no">
               <span>Form No:</span>
@@ -833,7 +847,7 @@ const FormDownload = ({ formData }) => {
       {rulePages.map((rules, pageIndex) => <div id={`rule-page-${pageIndex + 1}`} className="form-container form-rules-container" data-pdf-page="true" key={`rules-${pageIndex}`}>
         <section className="form-rules-page">
           <header className="form-rules-header">
-            <img src={Img} alt="Logo" className="form-rules-logo" />
+            <img src={businessLogo || Img} alt={businessLogo ? "Business logo" : "Logo"} className="form-rules-logo" />
             <div>
               <h2>{hostelRules.title}</h2>
               <p>Rules and regulations - page {pageIndex + 1} of {rulePages.length}</p>

@@ -60,6 +60,18 @@ function TenantIntake() {
     relative2Name: "",
     relative2Phone: "",
     familyMembers: "",
+    familyMale: 0,
+    familyFemale: 0,
+    familyChildren: 0,
+    otherFamilyMembers: [],
+    passportNo: "",
+    panCardNo: "",
+    aadhaarCardNo: "",
+    natureOfWork: "",
+    previousAddress: "",
+    officeName: "",
+    officeAddress: "",
+    officeMobileNo: "",
     shopName: "",
     shopBusiness: "",
     trackerType: "",
@@ -73,6 +85,8 @@ function TenantIntake() {
   const [parentAadharFile, setParentAadharFile] = useState(null);
   const [photoFile, setPhotoFile] = useState(null);
   const [panCardFile, setPanCardFile] = useState(null);
+  const [tenantGovernmentIdFile, setTenantGovernmentIdFile] = useState(null);
+  const [roomFamilyDocumentFiles, setRoomFamilyDocumentFiles] = useState({});
   const [existingDocuments, setExistingDocuments] = useState([]);
   const [documentActionMenu, setDocumentActionMenu] = useState("");
 
@@ -206,10 +220,15 @@ function TenantIntake() {
 
   const mergeLockedFields = (source, previous = {}) => {
     const next = { ...previous };
+    const hasValue = (value) => {
+      if (Array.isArray(value)) return value.some((item) => hasValue(item));
+      if (value && typeof value === "object") return Object.values(value).some((item) => hasValue(item));
+      return value !== "" && value != null;
+    };
 
     Object.entries(source || {}).forEach(([key, value]) => {
       if (key === "srNo") return;
-      if (value === "" || value == null) return;
+      if (!hasValue(value)) return;
       next[key] = true;
     });
 
@@ -235,6 +254,19 @@ function TenantIntake() {
     "relative2Relation",
     "relative2Name",
     "relative2Phone",
+    "familyMembers",
+    "familyMale",
+    "familyFemale",
+    "familyChildren",
+    "otherFamilyMembers",
+    "passportNo",
+    "panCardNo",
+    "aadhaarCardNo",
+    "natureOfWork",
+    "previousAddress",
+    "officeName",
+    "officeAddress",
+    "officeMobileNo",
   ]);
 
   const sharedAdminLockedFields = new Set([
@@ -478,9 +510,24 @@ function TenantIntake() {
       return;
     }
 
-    if (name === "phoneNo" || name === "relative1Phone" || name === "relative2Phone") {
+    if (name === "familyMembers") {
+      const count = Math.min(50, Math.max(0, Number(value) || 0));
+      setFormData((prev) => ({
+        ...prev,
+        familyMembers: value,
+        otherFamilyMembers: Array.from({ length: Math.max(0, count - 1) }, (_, index) => prev.otherFamilyMembers?.[index] || { name: "", age: "", occupation: "", phone: "" }),
+      }));
+      return;
+    }
+
+    if (name === "phoneNo" || name === "relative1Phone" || name === "relative2Phone" || name === "officeMobileNo" || name === "aadhaarCardNo") {
       const onlyDigits = value.replace(/\D/g, "").slice(0, 10);
-      setFormData((prev) => ({ ...prev, [name]: onlyDigits }));
+      setFormData((prev) => ({ ...prev, [name]: name === "aadhaarCardNo" ? value.replace(/\D/g, "").slice(0, 12) : onlyDigits }));
+      return;
+    }
+
+    if (name === "panCardNo" || name === "passportNo") {
+      setFormData((prev) => ({ ...prev, [name]: value.toUpperCase() }));
       return;
     }
 
@@ -517,9 +564,16 @@ function TenantIntake() {
   ============================ */
   function sanitizeTenantPayload(obj) {
     const out = {};
+    const optionalResidentialFields = new Set([
+      "passportNo", "panCardNo", "aadhaarCardNo", "natureOfWork",
+      "previousAddress", "officeName", "officeAddress", "officeMobileNo",
+    ]);
 
     for (const [k, v] of Object.entries(obj || {})) {
-      if (v === "" || v == null) continue;
+      if (v === "" || v == null) {
+        if (optionalResidentialFields.has(k) && sharedTrackerType === "room") out[k] = "";
+        continue;
+      }
 
       if (/(amount|price|rent|deposit|srNo)$/i.test(k)) {
         const n = Number(String(v).replace(/[,₹\s]/g, ""));
@@ -671,6 +725,17 @@ function TenantIntake() {
       if (!isFieldLocked("phoneNo") && formData.phoneNo && !/^\d{10}$/.test(formData.phoneNo))
         return alert("Enter valid 10-digit phone number.");
 
+      if (sharedTrackerType === "room") {
+        const aadhaar = String(formData.aadhaarCardNo || "").trim();
+        const pan = String(formData.panCardNo || "").trim().toUpperCase();
+        const passport = String(formData.passportNo || "").trim().toUpperCase();
+        if (aadhaar && !/^\d{12}$/.test(aadhaar)) return alert("Aadhaar number must be exactly 12 digits.");
+        if (pan && !/^[A-Z]{5}\d{4}[A-Z]$/.test(pan)) return alert("Enter a valid 10-character PAN (for example, ABCDE1234F).");
+        if (passport && !/^[A-Z]\d{7}$/.test(passport)) return alert("Enter a valid 8-character passport number (one letter followed by 7 digits).");
+        const invalidMemberIndex = (formData.otherFamilyMembers || []).findIndex((member) => member?.phone && !/^\d{10}$/.test(String(member.phone).trim()));
+        if (invalidMemberIndex >= 0) return alert(`Enter a valid 10-digit mobile number for Other Family Member ${invalidMemberIndex + 1}.`);
+      }
+
       if (!isFieldLocked("relative1Phone") && formData.relative1Phone && !/^\d{10}$/.test(formData.relative1Phone))
         return alert("Relative 1 phone must be 10 digits.");
 
@@ -727,7 +792,7 @@ function TenantIntake() {
         raw.relativeAddress1 = formData.relativeAddress;
       }
       delete raw.relativeAddress;
-      if (sharedTrackerType !== "bed") {
+      if (sharedTrackerType === "shop") {
         delete raw.relative1Relation;
         delete raw.relative1Name;
         delete raw.relative1Phone;
@@ -1018,6 +1083,22 @@ const submitRes = await axios.put(`${API_ROOT}/invites/${inviteToken}/submit`, p
           </>
         )}
 
+        {sharedTrackerType === "room" && (
+          <div className="tenant-intake-relative-grid">
+            {[1, 2].map((number) => <fieldset className="form-group" key={`room-relative-${number}`}>
+              <legend>Relative {number}</legend>
+              <label htmlFor={`room-relative-${number}-relation`}>Relation</label>
+              <select id={`room-relative-${number}-relation`} name={`relative${number}Relation`} value={formData[`relative${number}Relation`]} onChange={handleChange} className="form-input" readOnly={isFieldLocked(`relative${number}Relation`)}>
+                {["Self", "Sister", "Brother", "Father", "Husband", "Mother"].map((relation) => <option key={relation}>{relation}</option>)}
+              </select>
+              <label htmlFor={`room-relative-${number}-name`}>Name</label>
+              <input id={`room-relative-${number}-name`} name={`relative${number}Name`} value={formData[`relative${number}Name`]} onChange={handleChange} className="form-input" readOnly={isFieldLocked(`relative${number}Name`)} placeholder="Name" />
+              <label htmlFor={`room-relative-${number}-phone`}>Phone</label>
+              <input id={`room-relative-${number}-phone`} name={`relative${number}Phone`} value={formData[`relative${number}Phone`]} onChange={handleChange} className="form-input" readOnly={isFieldLocked(`relative${number}Phone`)} placeholder="10 digit" inputMode="numeric" maxLength={10} />
+            </fieldset>)}
+          </div>
+        )}
+
         {sharedTrackerType === "shop" && (
           <div className="form-group">
             <label>Shop Name</label>
@@ -1150,18 +1231,61 @@ const submitRes = await axios.put(`${API_ROOT}/invites/${inviteToken}/submit`, p
         )}
 
         {sharedTrackerType === "room" && (
-          <div className="form-group">
-            <label>No. of Family Members</label>
-            <input
-              type="number"
-              min="0"
-              name="familyMembers"
-              value={formData.familyMembers}
-              onChange={handleChange}
-              className="form-input"
-              readOnly={isFieldLocked("familyMembers")}
-            />
-          </div>
+          <>
+            <div className="form-group">
+              <label>No. of Family Members</label>
+              <input type="number" min="0" max="50" name="familyMembers" value={formData.familyMembers} onChange={handleChange} className="form-input" readOnly={isFieldLocked("familyMembers")} />
+            </div>
+            {[ ["familyMale", "Male"], ["familyFemale", "Female"], ["familyChildren", "Children's"] ].map(([key, label]) => (
+              <div className="form-group" key={key}>
+                <label>{label}</label>
+                <input type="number" min="0" name={key} value={formData[key] ?? 0} onChange={handleChange} className="form-input" />
+              </div>
+            ))}
+            {Array.from({ length: Math.max(0, Math.min(50, Number(formData.familyMembers) || 0) - 1) }, (_, index) => formData.otherFamilyMembers?.[index] || {}).map((member, index) => (
+              <fieldset className="form-group tenant-intake-family-member" key={`share-family-${index}`}>
+                <legend>Other Family Member {index + 1}</legend>
+                {[ ["name", "Name"], ["age", "Age"], ["occupation", "Occupation"], ["phone", "Mobile No."] ].map(([key, label]) => (
+                  <div key={key}>
+                    <label>{label}</label>
+                    <input
+                      type={key === "phone" ? "tel" : key === "age" ? "number" : "text"}
+                      inputMode={key === "phone" ? "numeric" : undefined}
+                      maxLength={key === "phone" ? 10 : undefined}
+                      value={member?.[key] || ""}
+                      onChange={(event) => {
+                        const value = key === "phone" ? event.target.value.replace(/\\D/g, "").slice(0, 10) : event.target.value;
+                        setFormData((current) => ({
+                          ...current,
+                          otherFamilyMembers: Array.from({ length: Math.max(0, Math.min(50, Number(current.familyMembers) || 0) - 1) }, (_, itemIndex) => current.otherFamilyMembers?.[itemIndex] || {}).map((item, itemIndex) => itemIndex === index ? { ...item, [key]: value } : item),
+                        }));
+                      }}
+                      className="form-input"
+                    />
+                  </div>
+                ))}
+              </fieldset>
+            ))}
+            {[ ["passportNo", "Passport No (optional)"], ["panCardNo", "PAN Card No (optional)"], ["aadhaarCardNo", "Aadhaar Card No (optional)"], ["natureOfWork", "Nature of Work (optional)"], ["previousAddress", "Previous Address of Tenant (optional)"], ["officeName", "Office Name (optional)"], ["officeAddress", "Office Address / Company Address (optional)"], ["officeMobileNo", "Office Mobile No (optional)"] ].map(([key, label]) => (
+              <div className="form-group" key={key}>
+                <label>{label}</label>
+                {key === "previousAddress" ? (
+                  <textarea name={key} value={formData[key] || ""} onChange={handleChange} className="form-input" readOnly={isFieldLocked(key)} />
+                ) : (
+                  <input
+                    name={key}
+                    type={key === "officeMobileNo" ? "tel" : "text"}
+                    inputMode={key === "officeMobileNo" || key === "aadhaarCardNo" ? "numeric" : undefined}
+                    maxLength={key === "officeMobileNo" ? 10 : key === "aadhaarCardNo" ? 12 : key === "panCardNo" || key === "passportNo" ? 10 : undefined}
+                    value={formData[key] || ""}
+                    onChange={handleChange}
+                    className="form-input"
+                    readOnly={isFieldLocked(key)}
+                  />
+                )}
+              </div>
+            ))}
+          </>
         )}
 
         {/* DOCUMENT UPLOADS */}
@@ -1182,6 +1306,36 @@ const submitRes = await axios.put(`${API_ROOT}/invites/${inviteToken}/submit`, p
           )}
 
           {renderDocumentField({ role: "photo", label: "Tenant Photograph (Selfie)", relation: "Tenant Photo", file: photoFile, setter: setPhotoFile, camera: "user" })}
+
+          {sharedTrackerType === "room" && renderDocumentField({
+            role: "tenant-government-id",
+            label: "Tenant Other Government ID",
+            relation: "Tenant Other Government ID",
+            file: tenantGovernmentIdFile,
+            setter: setTenantGovernmentIdFile,
+          })}
+
+          {sharedTrackerType === "room" && Array.from({ length: Math.max(0, Math.min(50, Number(formData.familyMembers) || 0) - 1) }, (_, index) => formData.otherFamilyMembers?.[index] || {}).map((member, index) => (
+            <fieldset className="tenant-intake-family-member-documents" key={`share-family-docs-${index}`}>
+              <legend>Family Member {index + 1} Documents</legend>
+              {[
+                ["aadhaar", "Aadhaar Card"],
+                ["governmentId", "Other Government ID"],
+                ["photo", "Photo"],
+              ].map(([kind, label]) => {
+                const role = `family-${index}-${kind}`;
+                const relation = `Family Member ${index + 1} ${label}`;
+                return renderDocumentField({
+                  role,
+                  label: relation,
+                  relation,
+                  file: roomFamilyDocumentFiles[role] || null,
+                  setter: (file) => setRoomFamilyDocumentFiles((current) => ({ ...current, [role]: file })),
+                  camera: kind === "photo" ? "user" : "environment",
+                });
+              })}
+            </fieldset>
+          ))}
 
           {sharedTrackerType === "shop" && (
             renderDocumentField({ role: "panCard", label: "PAN Card", relation: "PAN Card", file: panCardFile, setter: setPanCardFile })

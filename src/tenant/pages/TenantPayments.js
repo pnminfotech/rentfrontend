@@ -2,6 +2,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { API, tenantHttp } from "../tenantApi";
 import { useLocation } from "react-router-dom";
+import { FaReceipt } from "react-icons/fa";
+import "./TenantPayments.css";
 
 /* ----------------------- Constants & utils ----------------------- */
 const MONTHS = [
@@ -13,6 +15,13 @@ const MONTHS = [
 
 const toNumber = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 const moneyINR = (v = 0) => `₹${Number(v || 0).toLocaleString("en-IN")}`;
+const resolveReceiptUrl = (url) => {
+  const value = String(url || "").trim();
+  if (!value) return "";
+  if (/^https?:\/\//i.test(value)) return value;
+  const origin = String(API).replace(/\/api\/?$/i, "");
+  return `${origin}${value.startsWith("/") ? value : `/${value}`}`;
+};
 function Money({ v = 0 }) { return <>{moneyINR(v)}</>; }
 const fmtMonthYear = (m, y) =>
   (!m || !y ? "—" : `${MONTHS.find(x => x.n === Number(m))?.label || m} ${y}`);
@@ -117,23 +126,39 @@ export default function TenantPayments({ me: meProp, rents: rentsProp, refresh }
   const location = useLocation();
   const totalDueFromHome = location.state?.totalDue;
   const baseRentFromHome = location.state?.baseRent;
+  const dueMonthFromHome = Number(location.state?.dueMonth);
+  const dueYearFromHome = Number(location.state?.dueYear);
+  const dueAmountFromHome = Number(location.state?.dueAmount);
 
   const [me, setMe] = useState(meProp || null);
   const [rents, setRents] = useState(rentsProp || null);
   const [myPays, setMyPays] = useState([]);
+  const [selectedReceipt, setSelectedReceipt] = useState(null);
 
   // rooms for deriving base rent like admin page
   const [rooms, setRooms] = useState(null);
 
   // Amount defaults to last paid amount or base rent
   const now = new Date();
-  const [amount, setAmount] = useState("500");
+  const [amount, setAmount] = useState(() =>
+    Number.isFinite(dueAmountFromHome) && dueAmountFromHome > 0
+      ? String(dueAmountFromHome)
+      : "500"
+  );
   const [utr, setUTR] = useState("");
   const [note, setNote] = useState("");
 
   // Month/year the payment is for
-  const [selMonth, setSelMonth] = useState(now.getMonth() + 1); // 1..12
-  const [selYear, setSelYear]   = useState(now.getFullYear());
+  const [selMonth, setSelMonth] = useState(
+    Number.isInteger(dueMonthFromHome) && dueMonthFromHome >= 1 && dueMonthFromHome <= 12
+      ? dueMonthFromHome
+      : now.getMonth() + 1
+  ); // 1..12
+  const [selYear, setSelYear]   = useState(
+    Number.isInteger(dueYearFromHome) && dueYearFromHome > 0
+      ? dueYearFromHome
+      : now.getFullYear()
+  );
 
   // SINGLE static QR (no query params so it won't re-generate)
   const [qrUrl] = useState(`${API}/tenant/upi-qr`);
@@ -183,6 +208,64 @@ export default function TenantPayments({ me: meProp, rents: rentsProp, refresh }
 
   /* -------------------- Paid/Unpaid month detection -------------------- */
   const rentList = Array.isArray(rents?.rents) ? rents.rents : [];
+  const rentReceipts = useMemo(() => rentList.flatMap((rent) => {
+    const payments = Array.isArray(rent?.payments) && rent.payments.length ? rent.payments : [rent];
+    return payments
+      .filter((payment) => toNumber(payment?.amount ?? payment?.rentAmount ?? rent?.rentAmount) > 0)
+      .map((payment, index) => ({
+        rent,
+        payment,
+        index,
+        amount: toNumber(payment?.amount ?? payment?.rentAmount ?? rent?.rentAmount),
+        date: payment?.date || rent?.date,
+        key: payment?._id || `${rent?._id || rent?.month || "rent"}-${index}`,
+      }));
+  }).sort((a, b) => new Date(b.date || 0) - new Date(a.date || 0)), [rentList]);
+  const selectedUploadedReceiptUrl = resolveReceiptUrl(selectedReceipt?.payment?.receiptUrl || selectedReceipt?.rent?.receiptUrl);
+
+  const shareReceipt = async () => {
+    if (!selectedReceipt) return;
+    const text = [
+      "Rent payment receipt",
+      `Tenant: ${me?.name || "-"}`,
+      `Rent month: ${selectedReceipt.rent?.month || "-"}`,
+      `Unit: ${me?.roomNo || me?.roomId?.roomNo || "-"}`,
+      `Amount: Rs. ${selectedReceipt.amount.toLocaleString("en-IN")}`,
+      `Payment mode: ${selectedReceipt.payment?.paymentMode || "Cash"}`,
+      `Date: ${selectedReceipt.date ? new Date(selectedReceipt.date).toLocaleDateString("en-IN") : "-"}`,
+      selectedReceipt.payment?.utr ? `Reference: ${selectedReceipt.payment.utr}` : "",
+    ].filter(Boolean).join("\n");
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: "Rent payment receipt", text, url: window.location.href });
+        return;
+      }
+      if (navigator.clipboard) await navigator.clipboard.writeText(text);
+      const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+      const fileUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = fileUrl;
+      link.download = `receipt-${selectedReceipt.rent?.month || "payment"}.txt`;
+      link.click();
+      URL.revokeObjectURL(fileUrl);
+    } catch (error) {
+      if (error?.name !== "AbortError") alert("Unable to share receipt.");
+    }
+  };
+
+  useEffect(() => {
+    if (!selectedReceipt) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    const closeOnEscape = (event) => {
+      if (event.key === "Escape") setSelectedReceipt(null);
+    };
+    document.body.style.overflow = "hidden";
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [selectedReceipt]);
 
   const lastPaidRec = useMemo(() => {
     return [...rentList]
@@ -213,8 +296,11 @@ export default function TenantPayments({ me: meProp, rents: rentsProp, refresh }
     if (typeof totalDueFromHome === "number" && !Number.isNaN(totalDueFromHome)) {
       return totalDueFromHome;
     }
+    if (typeof rents?.totalDue === "number" && Number.isFinite(rents.totalDue)) {
+      return rents.totalDue;
+    }
     return calcDueAdminAligned({ joiningDate: me?.joiningDate, rents: rentList });
-  }, [totalDueFromHome, me?.joiningDate, rentList]);
+  }, [totalDueFromHome, rents?.totalDue, me?.joiningDate, rentList]);
 
   // derive base rent from (router state) → rooms → me.baseRent → lastPaid
   const displayBaseRent = useMemo(() => {
@@ -257,6 +343,16 @@ export default function TenantPayments({ me: meProp, rents: rentsProp, refresh }
 
   // Current-year unpaid months starting from the month **after joining**
   const pendingMonths = useMemo(() => {
+    if (Array.isArray(rents?.dueMonths)) {
+      return rents.dueMonths
+        .map((entry) => {
+          const parsed = parseMonthKey(entry?.month);
+          const dueAmount = toNumber(entry?.outstanding);
+          if (!parsed || dueAmount <= 0) return null;
+          return { m: parsed.m + 1, y: parsed.y, amount: dueAmount };
+        })
+        .filter(Boolean);
+    }
     if (!me?.joiningDate) return [];
     const today = new Date();
     const currentYear = today.getFullYear();
@@ -276,7 +372,7 @@ export default function TenantPayments({ me: meProp, rents: rentsProp, refresh }
       cursor.setMonth(cursor.getMonth() + 1);
     }
     return out;
-  }, [me?.joiningDate, paidSet]);
+  }, [rents?.dueMonths, me?.joiningDate, paidSet]);
 
   // Prefill selectors to earliest unpaid (else current)
   const firstBillYM = useMemo(
@@ -287,9 +383,22 @@ export default function TenantPayments({ me: meProp, rents: rentsProp, refresh }
   useEffect(() => {
     const currentYM = now.getFullYear() * 12 + now.getMonth();
 
+    if (
+      Number.isInteger(dueMonthFromHome) && dueMonthFromHome >= 1 && dueMonthFromHome <= 12 &&
+      Number.isInteger(dueYearFromHome) && dueYearFromHome > 0
+    ) {
+      setSelMonth(dueMonthFromHome);
+      setSelYear(dueYearFromHome);
+      if (Number.isFinite(dueAmountFromHome) && dueAmountFromHome > 0) {
+        setAmount(String(dueAmountFromHome));
+      }
+      return;
+    }
+
     if (pendingMonths.length) {
       setSelMonth(pendingMonths[0].m);
       setSelYear(pendingMonths[0].y);
+      if (pendingMonths[0].amount > 0) setAmount(String(pendingMonths[0].amount));
     } else if (firstBillYM != null && currentYM < firstBillYM) {
       const ym = monthIndexToYM(firstBillYM);
       if (ym) {
@@ -301,7 +410,7 @@ export default function TenantPayments({ me: meProp, rents: rentsProp, refresh }
       setSelYear(now.getFullYear());
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingMonths.length, firstBillYM]);
+  }, [pendingMonths, firstBillYM, dueMonthFromHome, dueYearFromHome, dueAmountFromHome, location.key]);
 
   const currentMonthPaid = useMemo(() => {
     const currentYM = now.getFullYear() * 12 + now.getMonth();
@@ -334,11 +443,13 @@ export default function TenantPayments({ me: meProp, rents: rentsProp, refresh }
     };
   }, [currentMonthPaid, firstBillYM]);
 
-  // years dropdown: current year down to current-2
+  // Include every year that still has an outstanding billing cycle.
   const years = useMemo(() => {
     const y0 = now.getFullYear();
-    return [y0, y0 - 1, y0 - 2];
-  }, [now]);
+    return Array.from(
+      new Set([y0, y0 - 1, y0 - 2, ...pendingMonths.map((month) => month.y)])
+    ).sort((a, b) => b - a);
+  }, [pendingMonths]);
 
   /* ---------------------------- Actions -------------------------------- */
   const reportPayment = async () => {
@@ -380,7 +491,7 @@ export default function TenantPayments({ me: meProp, rents: rentsProp, refresh }
 
   /* ------------------------------ UI ----------------------------------- */
   return (
-    <div style={{ padding: 4 }} className="tpay">
+    <main className="tpay">
       {/* Responsive styles */}
       <style>{`
         .tpay .kpi-grid {
@@ -428,9 +539,15 @@ export default function TenantPayments({ me: meProp, rents: rentsProp, refresh }
         }
 
         /* Tablet */
-        @media (max-width: 1024px) {
+        @media (max-width: 1200px) {
           .tpay .kpi-grid {
             grid-template-columns: repeat(2, 1fr);
+          }
+          .tpay .two-col {
+            grid-template-columns: minmax(0, 1fr);
+          }
+          .tpay .two-col > section {
+            width: 100%;
           }
         }
 
@@ -451,30 +568,61 @@ export default function TenantPayments({ me: meProp, rents: rentsProp, refresh }
         }
       `}</style>
 
-      <h3 style={{ margin: "8px 0 16px" }}>Bills & Payments</h3>
+      <style>{`
+        .tenant-rent-receipts { display: grid; gap: 9px; }
+        .tenant-rent-receipt-row { display: grid; grid-template-columns: minmax(0,1fr) minmax(100px,.5fr) auto; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid #e4e9f5; border-radius: 12px; background: #fbfcff; }
+        .tenant-rent-receipt-row strong { color: #172f68; }
+        .tenant-rent-receipt-row small { display: block; margin-top: 3px; color: #7180a0; }
+        .tenant-rent-receipt-open { padding: 8px 12px; border: 1px solid #cbd8f5; border-radius: 9px; color: #244bc3; background: #fff; font-weight: 700; cursor: pointer; }
+        .tenant-receipt-backdrop { position:fixed; inset:0; z-index:1200; display:grid; place-items:center; padding:18px; background:rgba(0,0,0,.5); }
+        .tenant-receipt-modal { width:min(500px,100%); max-height:92vh; overflow:auto; border:0; border-radius:16px; color:#17202a; background:#fbf7ef; box-shadow:0 18px 55px rgba(15,23,42,.25); }
+        .tenant-receipt-modal-head { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:18px 22px; border-bottom:1px solid #e7ded1; background:#fbf7ef; }
+        .tenant-receipt-modal-head h4 { margin:0; color:#17202a; font-weight:700; }
+        .tenant-receipt-close { border:0; color:#244f70; background:transparent; font-size:28px; line-height:1; cursor:pointer; }
+        .tenant-receipt-modal-body { padding:22px; background:#fbf7ef; }
+        .tenant-receipt-card { padding:22px; border:1px solid #d6e7ef; border-radius:12px; color:#173c5d; background:#eaf5fb; }
+        .tenant-receipt-brand { color:#17202a; font-size:23px; font-weight:700; }
+        .tenant-receipt-type { margin-top:4px; padding-bottom:14px; border-bottom:2px solid #2c5d80; color:#2c5d80; font-weight:600; }
+        .tenant-receipt-meta { display:flex; justify-content:space-between; gap:12px; margin-top:16px; padding:12px; color:#647789; background:#f7fbfd; font-size:12px; }
+        .tenant-receipt-amount { margin:22px 0; color:#244f70; font-size:30px; font-weight:800; }
+        .tenant-receipt-detail { display:flex; justify-content:space-between; gap:16px; min-height:44px; padding:11px 0; border-bottom:1px solid rgba(36,79,112,.18); }
+        .tenant-receipt-detail span { color:#647789; }
+        .tenant-receipt-detail strong { color:#173c5d; text-align:right; word-break:break-word; }
+        .tenant-receipt-original { color:#2c5d80; font-weight:700; text-decoration:underline; }
+        .tenant-receipt-footer { margin-top:22px; color:#647789; font-size:11px; text-align:center; }
+        .tenant-receipt-actions { display:flex; gap:10px; padding:0 22px 22px; background:#fbf7ef; }
+        .tenant-receipt-actions button { flex:1; min-height:46px; border-radius:8px; font-weight:700; cursor:pointer; }
+        .tenant-receipt-print { border:1px solid #2c5d80; color:#2c5d80; background:#fffdf9; }
+        .tenant-receipt-share { border:1px solid #2c5d80; color:#244f70; background:#dceef7; }
+        .tenant-receipt-close-action { border:0; color:#fff; background:#2c5d80; }
+        @media (max-width:640px) { .tenant-rent-receipt-row { grid-template-columns:minmax(0,1fr) auto; } .tenant-rent-receipt-row .receipt-row-amount { grid-column:1; } .tenant-rent-receipt-row .tenant-rent-receipt-open { grid-column:2; grid-row:1 / span 2; } .tenant-receipt-backdrop { padding:10px; } .tenant-receipt-modal { max-height:94dvh; } .tenant-receipt-modal-body { padding:16px; } .tenant-receipt-card { padding:18px; } .tenant-receipt-meta { flex-direction:column; } .tenant-receipt-actions { padding:0 16px 16px; } }
+        @media print { body * { visibility:hidden !important; } #tenant-payment-receipt, #tenant-payment-receipt * { visibility:visible !important; } #tenant-payment-receipt { position:absolute !important; inset:0 !important; width:100% !important; max-height:none !important; overflow:visible !important; box-shadow:none !important; } .tenant-receipt-actions, .tenant-receipt-modal-head { display:none !important; } .tenant-receipt-backdrop { position:absolute !important; inset:0 !important; padding:0 !important; background:#fff !important; } .tenant-receipt-modal-body { padding:0 !important; background:#fff !important; } .tenant-receipt-card { border:0 !important; } }
+      `}</style>
+
+      <div className="tpay-page-heading"><h1 className="tpay-title">Pay rent</h1><p>Choose a month, pay by UPI, then report your payment.</p></div>
 
       {/* Top summary */}
       <div className="kpi-grid">
-        <div style={card}>
+        <div className="tpay-kpi" style={card}>
           <div style={{ color: "#6b7280", fontSize: 12 }}>Room / Bed</div>
           <div style={{ fontWeight: 700 }}>{me?.roomNo || "—"} / {me?.bedNo || "—"}</div>
         </div>
 
-        <div style={card}>
+        <div className="tpay-kpi" style={card}>
           <div style={{ color: "#6b7280", fontSize: 12 }}>Base Rent</div>
           <div style={{ fontWeight: 700 }}>
             <Money v={displayBaseRent} />
           </div>
         </div>
 
-        <div style={card}>
+        <div className="tpay-kpi" style={card}>
           <div style={{ color: "#6b7280", fontSize: 12 }}>Total Due</div>
           <div style={{ fontWeight: 700 }}>
             <Money v={totalDue} />
           </div>
         </div>
 
-        <div style={card}>
+        <div className="tpay-kpi" style={card}>
           <div style={{ color: "#6b7280", fontSize: 12 }}>Current Month</div>
           <div style={{ fontWeight: 700, color: currentMonthState.color }}>
             {currentMonthState.label}
@@ -483,8 +631,8 @@ export default function TenantPayments({ me: meProp, rents: rentsProp, refresh }
       </div>
 
       {/* Pending months quick-pick */}
-      <div style={card}>
-        <div style={{ fontWeight: 700, marginBottom: 8 }}>Pending Months (current year)</div>
+      <section className="tpay-panel tpay-outstanding" style={card}>
+        <div className="tpay-section-title">Outstanding months</div>
         {pendingMonths.length ? (
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             {pendingMonths.map(({ m, y }) => {
@@ -492,7 +640,12 @@ export default function TenantPayments({ me: meProp, rents: rentsProp, refresh }
               return (
                 <button
                   key={`${m}-${y}`}
-                  onClick={() => { setSelMonth(m); setSelYear(y); }}
+                  onClick={() => {
+                    setSelMonth(m);
+                    setSelYear(y);
+                    const pending = pendingMonths.find((item) => item.m === m && item.y === y);
+                    if (pending?.amount > 0) setAmount(String(pending.amount));
+                  }}
                   className={`btn-chip ${active ? "btn-chip--active" : ""}`}
                   title={`Select ${fmtMonthYear(m, y)}`}
                 >
@@ -508,15 +661,15 @@ export default function TenantPayments({ me: meProp, rents: rentsProp, refresh }
         ) : (
           <div style={{ color: "#6b7280" }}>No pending months for this year 🎉</div>
         )}
-      </div>
+      </section>
 
       {/* Pay / Static QR + Month-Year */}
       <div className="two-col">
-        <div style={card}>
-          <div style={{ fontWeight: 700, marginBottom: 8 }}>Pay via UPI</div>
+        <section className="tpay-panel tpay-upi" style={card}>
+          <div className="tpay-section-title">Pay via UPI</div>
 
-          <div className="actions-inline">
-            <div>
+          <div className="actions-inline upi-payment-fields">
+            <div className="upi-payment-field">
               <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 4 }}>Amount (₹)</div>
               <input
                 value={amount}
@@ -527,7 +680,7 @@ export default function TenantPayments({ me: meProp, rents: rentsProp, refresh }
               />
             </div>
 
-            <div>
+            <div className="upi-payment-field">
               <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 4 }}>Month</div>
               <select
                 value={selMonth}
@@ -538,7 +691,7 @@ export default function TenantPayments({ me: meProp, rents: rentsProp, refresh }
                 {MONTHS.map(m => <option key={m.n} value={m.n}>{m.label}</option>)}
               </select>
             </div>
-            <div>
+            <div className="upi-payment-field">
               <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 4 }}>Year</div>
               <select
                 value={selYear}
@@ -551,24 +704,26 @@ export default function TenantPayments({ me: meProp, rents: rentsProp, refresh }
             </div>
           </div>
 
-          <div style={{ marginTop: 12 }}>
+          <div className="upi-qr-section">
+            <div className="upi-qr-preview">
             <img
-              src={qrUrl}
-              alt="UPI QR"
+              src={rents?.paymentQrUrl || qrUrl}
+              alt={rents?.paymentQrUrl ? "Rent payment QR provided by property administrator" : "UPI payment QR"}
               className="qr-img"
             />
+            </div>
+            <div className="upi-qr-instructions">
+              <strong>Pay securely with your UPI app</strong>
+              <p>This QR code is static. Scan it, then enter the payment details below:</p>
+              <div><span>Amount</span><b>{moneyINR(amount || 0)}</b></div>
+              <div><span>Payment note</span><b>Hostel Rent {fmtMonthYear(selMonth, selYear)}</b></div>
+              <small>After paying, submit the UTR / reference in the Report Payment form.</small>
+            </div>
           </div>
-          <div style={{ color: "#6b7280", fontSize: 12, marginTop: 8, lineHeight: 1.4 }}>
-            This QR is <b>static</b>. Open your UPI app after scanning and:
-            <ul style={{ margin: "6px 0 0 18px" }}>
-              <li>Enter amount: <b>{moneyINR(amount || 0)}</b></li>
-              <li>Use note: <b>Hostel Rent {fmtMonthYear(selMonth, selYear)}</b></li>
-            </ul>
-          </div>
-        </div>
+        </section>
 
-        <div style={card}>
-          <div style={{ fontWeight: 700, marginBottom: 8 }}>Report Payment</div>
+        <section className="tpay-panel tpay-report" style={card}>
+          <div className="tpay-section-title">Report payment</div>
           <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 8 }}>
             After paying via UPI, select the month/year, paste your UTR / Reference ID and a short note.
           </div>
@@ -588,21 +743,13 @@ export default function TenantPayments({ me: meProp, rents: rentsProp, refresh }
           <div style={{ display: "flex", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
             <div style={{ flex: 1, minWidth: 140 }}>
               <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 4 }}>Month</div>
-              <select
-                value={selMonth}
-                onChange={(e) => setSelMonth(Number(e.target.value))}
-                className="input"
-              >
+              <select value={selMonth} onChange={(e) => setSelMonth(Number(e.target.value))} className="input">
                 {MONTHS.map(m => <option key={m.n} value={m.n}>{m.label}</option>)}
               </select>
             </div>
             <div style={{ width: 160 }}>
               <div style={{ fontSize: 12, color: "#6b7280", marginBottom: 4 }}>Year</div>
-              <select
-                value={selYear}
-                onChange={(e) => setSelYear(Number(e.target.value))}
-                className="input"
-              >
+              <select value={selYear} onChange={(e) => setSelYear(Number(e.target.value))} className="input">
                 {years.map(y => <option key={y} value={y}>{y}</option>)}
               </select>
             </div>
@@ -634,12 +781,30 @@ export default function TenantPayments({ me: meProp, rents: rentsProp, refresh }
           >
             Report Payment
           </button>
-        </div>
+        </section>
       </div>
 
+      {/* Receipts for payments recorded by the property administrator */}
+      <section className="tpay-panel tpay-receipts" style={card}>
+        <div className="tpay-section-title">Rent receipts</div>
+        {rentReceipts.length ? (
+          <div className="tenant-rent-receipts">
+            {rentReceipts.map((entry) => (
+              <div className="tenant-rent-receipt-row" key={entry.key}>
+                <div><strong>{entry.rent?.month || "Rent payment"}</strong><small>{entry.date ? new Date(entry.date).toLocaleString("en-IN") : "Date not recorded"}</small></div>
+                <div className="receipt-row-amount"><strong>{moneyINR(entry.amount)}</strong><small>{entry.payment?.paymentMode || "Payment"}</small></div>
+                <button type="button" className="tenant-rent-receipt-open" onClick={() => setSelectedReceipt(entry)}>View receipt</button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div style={{ color: "#6b7280", fontSize: 13 }}>Receipts will appear here after your rent payment is recorded.</div>
+        )}
+      </section>
+
       {/* My payment reports */}
-      <div style={card}>
-        <div style={{ fontWeight: 700, marginBottom: 10 }}>My Payment Reports</div>
+      <section className="tpay-panel tpay-reports" style={card}>
+        <div className="tpay-section-title">My payment reports</div>
         {myPays?.length ? (
           <div className="table-wrap" style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 680 }}>
@@ -664,12 +829,12 @@ export default function TenantPayments({ me: meProp, rents: rentsProp, refresh }
                   })
                   .map((p) => (
                   <tr key={p._id} style={{ borderTop: "1px solid #eef2f7" }}>
-                    <td style={{ padding: 8 }}>{new Date(p.createdAt).toLocaleString()}</td>
-                    <td style={{ padding: 8 }}>{fmtMonthYear(p.month, p.year)}</td>
-                    <td style={{ padding: 8 }}><Money v={p.amount} /></td>
-                    <td style={{ padding: 8 }}>{p.utr || "—"}</td>
-                    <td style={{ padding: 8 }}>{p.note || "—"}</td>
-                    <td style={{ padding: 8, fontWeight: 700 }}>
+                    <td data-label="Reported at" style={{ padding: 8 }}>{new Date(p.createdAt).toLocaleString()}</td>
+                    <td data-label="For month" style={{ padding: 8 }}>{fmtMonthYear(p.month, p.year)}</td>
+                    <td data-label="Amount" style={{ padding: 8 }}><Money v={p.amount} /></td>
+                    <td data-label="UTR" style={{ padding: 8 }}>{p.utr || "—"}</td>
+                    <td data-label="Note" style={{ padding: 8 }}>{p.note || "—"}</td>
+                    <td data-label="Status" style={{ padding: 8, fontWeight: 700 }}>
                       <span
                         style={{
                           padding: "2px 8px",
@@ -687,6 +852,11 @@ export default function TenantPayments({ me: meProp, rents: rentsProp, refresh }
                       >
                         {p.status}
                       </span>
+                      {p.status === "rejected" && (
+                        <div className="tenant-payment-review-message">
+                          {p.reviewMessage || "This payment report was rejected. Please review the amount, month, and UTR, then submit the payment report again."}
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -696,7 +866,46 @@ export default function TenantPayments({ me: meProp, rents: rentsProp, refresh }
         ) : (
           <div style={{ color: "#6b7280" }}>No payments yet.</div>
         )}
-      </div>
-    </div>
+      </section>
+
+      {selectedReceipt && (
+        <div className="tenant-receipt-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelectedReceipt(null); }}>
+          <section id="tenant-payment-receipt" className="tenant-receipt-modal" role="dialog" aria-modal="true" aria-labelledby="tenant-receipt-title">
+            <header className="tenant-receipt-modal-head">
+              <h4 id="tenant-receipt-title"><FaReceipt className="me-2" />Payment receipt</h4>
+              <button type="button" className="tenant-receipt-close" onClick={() => setSelectedReceipt(null)} aria-label="Close receipt">×</button>
+            </header>
+            <div className="tenant-receipt-modal-body">
+              <div className="tenant-receipt-card">
+                <div className="tenant-receipt-brand">{me?.category || "Rent Management"}</div>
+                <div className="tenant-receipt-type">Rent payment receipt</div>
+                <div className="tenant-receipt-meta">
+                  <span>Receipt: R-{String(me?.srNo || "0").padStart(4, "0")}-{String(selectedReceipt.rent?._id || selectedReceipt.rent?.month || "payment").slice(-6).toUpperCase()}-{selectedReceipt.index + 1}</span>
+                  <span>Date: {selectedReceipt.date ? new Date(selectedReceipt.date).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "—"}</span>
+                </div>
+                <div className="tenant-receipt-amount">Rs. {selectedReceipt.amount.toLocaleString("en-IN")}</div>
+                {[
+                  ["Received from", me?.name || "Tenant"],
+                  ["Rent month", selectedReceipt.rent?.month || "—"],
+                  ["Unit", me?.propertyType === "shop" ? `Shop ${me?.roomNo || "—"}` : `Room ${me?.roomNo || "—"}${me?.bedNo ? ` / Bed ${me.bedNo}` : ""}`],
+                  ["Payment mode", selectedReceipt.payment?.paymentMode || "Cash"],
+                  ["Reference", selectedReceipt.payment?.utr],
+                  ["Note", selectedReceipt.payment?.note || selectedReceipt.rent?.note],
+                ].filter(([, value]) => value).map(([label, value]) => (
+                  <div className="tenant-receipt-detail" key={label}><span>{label}</span><strong>{value}</strong></div>
+                ))}
+                {selectedUploadedReceiptUrl && <div className="tenant-receipt-detail"><span>Original receipt</span><a className="tenant-receipt-original" href={selectedUploadedReceiptUrl} target="_blank" rel="noreferrer">View uploaded file</a></div>}
+                <div className="tenant-receipt-footer">Computer-generated receipt. No signature is required.</div>
+              </div>
+            </div>
+            <footer className="tenant-receipt-actions">
+              <button type="button" className="tenant-receipt-print" onClick={() => window.print()}>🖨 &nbsp; Print</button>
+              <button type="button" className="tenant-receipt-share" onClick={shareReceipt}>↗ &nbsp; Share</button>
+              <button type="button" className="tenant-receipt-close-action" onClick={() => setSelectedReceipt(null)}>Close</button>
+            </footer>
+          </section>
+        </div>
+      )}
+    </main>
   );
 }

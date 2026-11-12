@@ -179,7 +179,7 @@ useEffect(() => {
       >
         <Route index element={<Navigate to="home" replace />} />
         <Route path="home" element={<TenantHome me={me} rents={rents} ann={ann} refresh={fetchAll} />} />
-        <Route path="rent" element={<TenantRent rents={rents} />} />
+        <Route path="rent" element={<TenantRent rents={rents} joiningDate={me?.joiningDate} />} />
         <Route path="payments" element={<TenantPayments me={me} rents={rents} refresh={fetchAll} />} />
         <Route path="documents" element={<TenantDocs me={me} onChanged={fetchAll} />} />
         <Route path="announcements" element={<TenantAnnouncements ann={ann} />} />

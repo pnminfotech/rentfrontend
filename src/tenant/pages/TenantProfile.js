@@ -1,6 +1,9 @@
 import React, { useEffect, useState, useMemo } from "react";
 import axios from "axios";
+import { FiFileText } from "react-icons/fi";
 import { API, authHeader } from "../tenantApi";
+import "./TenantProfile.css";
+import TenantDocs from "./TenantDocs";
 
 /* ========= Brand (refined + accessible) ========= */
 const colors = {
@@ -176,37 +179,17 @@ const styles = {
 };
 
 /* Helpers */
-const toDateInputValue = (val) => {
-  if (!val) return "";
-  const d = new Date(val);
-  return isNaN(d) ? "" : d.toISOString().slice(0, 10);
-};
 const fmtDate = (val) => {
   if (!val) return "—";
   const d = new Date(val);
   return isNaN(d) ? "—" : d.toLocaleDateString("en-IN", { dateStyle: "medium" });
 };
+const toDateInputValue = (val) => {
+  if (!val) return "";
+  const d = new Date(val);
+  return Number.isNaN(d.getTime()) ? "" : d.toISOString().slice(0, 10);
+};
 const fullUrl = (url) => (!url ? "" : /^https?:\/\//i.test(url) ? url : `${API}${url}`);
-
-/* Subtle focus effect */
-function FocusInput({ value, onChange, type = "text", name }) {
-  const [focused, setFocused] = useState(false);
-  return (
-    <input
-      style={{
-        ...styles.input,
-        borderColor: focused ? colors.primary : styles.input.borderColor,
-        boxShadow: focused ? `0 0 0 3px ${colors.primarySoft}` : "none",
-      }}
-      type={type}
-      name={name}
-      value={value ?? ""}
-      onChange={onChange}
-      onFocus={() => setFocused(true)}
-      onBlur={() => setFocused(false)}
-    />
-  );
-}
 
 /* Load Poppins font (no CSS file needed) */
 function useGoogleFont() {
@@ -222,15 +205,25 @@ function useGoogleFont() {
   }, []);
 }
 
-export default function TenantMyForm() {
+function EditableRow({ label, type = "text", value, onChange }) {
+  return (
+    <div>
+      <div style={styles.label}>{label}</div>
+      <input className="tenant-profile-input" type={type} value={value ?? ""} onChange={onChange} />
+    </div>
+  );
+}
+
+export default function TenantMyForm({ onChanged }) {
   useGoogleFont();
 
   const [me, setMe] = useState(null);
-  const [edit, setEdit] = useState(false);
+  const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState("");
   const [ok, setOk] = useState("");
-  const [form, setForm] = useState({});
+  const [draft, setDraft] = useState({});
+  const [documentsOpen, setDocumentsOpen] = useState(false);
 
   const avatarSrc = useMemo(() => {
     return (
@@ -252,23 +245,6 @@ export default function TenantMyForm() {
         const data = r.data || {};
         if (data.relativeAddress && !data.relativeAddress1) data.relativeAddress1 = data.relativeAddress;
         setMe(data);
-        setForm({
-          name: data.name || "",
-          // email: data.email || "",
-          dob: toDateInputValue(data.dob),
-          address: data.address || "",
-          companyAddress: data.companyAddress || "",
-          dateOfJoiningCollege: toDateInputValue(data.dateOfJoiningCollege),
-          relativeAddress1: data.relativeAddress1 || "",
-          relative1Relation: data.relative1Relation || "Self",
-          relative1Name: data.relative1Name || "",
-          relative1Phone: data.relative1Phone || "",
-          relative2Relation: data.relative2Relation || "Self",
-          relative2Name: data.relative2Name || "",
-          relative2Phone: data.relative2Phone || "",
-          emergencyContact: data.emergencyContact || "",
-          emergencyRelation: data.emergencyRelation || "",
-        });
       } catch {
         if (!alive) return;
         setErr("Failed to load your details.");
@@ -279,44 +255,65 @@ export default function TenantMyForm() {
     };
   }, []);
 
-  useEffect(() => {
-    if (!ok) return;
-    const t = setTimeout(() => setOk(""), 1800);
-    return () => clearTimeout(t);
-  }, [ok]);
+  const refreshProfile = async () => {
+    const r = await axios.get(`${API}/tenant/me`, { headers: authHeader() });
+    setMe(r.data || {});
+    if (onChanged) await onChanged();
+  };
 
-  const save = async () => {
+  const startEditing = () => {
+    setErr("");
+    setDraft({
+      name: me.name || "",
+      dob: toDateInputValue(me.dob),
+      address: me.address || "",
+      companyAddress: me.companyAddress || "",
+      emergencyContact: me.emergencyContact || "",
+    });
+    setEditing(true);
+  };
+
+  const saveProfile = async () => {
     setSaving(true);
     setErr("");
+    setOk("");
     try {
-      const payload = {
-        name: form.name,
-        // email: form.email,
-        dob: form.dob || null,
-        address: form.address,
-        companyAddress: form.companyAddress,
-        dateOfJoiningCollege: form.dateOfJoiningCollege || null,
-        relativeAddress1: form.relativeAddress1,
-        relative1Relation: form.relative1Relation,
-        relative1Name: form.relative1Name,
-        relative1Phone: form.relative1Phone,
-        relative2Relation: form.relative2Relation,
-        relative2Name: form.relative2Name,
-        relative2Phone: form.relative2Phone,
-        emergencyContact: form.emergencyContact,
-        emergencyRelation: form.emergencyRelation,
-      };
-      await axios.put(`${API}/tenant/profile`, payload, { headers: authHeader() });
-      const r = await axios.get(`${API}/tenant/me`, { headers: authHeader() });
-      setMe(r.data || {});
-      setOk("Saved ✓");
-      setEdit(false);
-    } catch {
-      setErr("Failed to save changes.");
+      await axios.put(`${API}/tenant/profile`, {
+        name: draft.name,
+        dob: draft.dob || null,
+        address: draft.address,
+        companyAddress: draft.companyAddress,
+        emergencyContact: draft.emergencyContact,
+      }, { headers: authHeader() });
+      await refreshProfile();
+      setEditing(false);
+      setOk("Profile saved successfully.");
+    } catch (error) {
+      setErr(error?.response?.data?.message || "Unable to save your profile.");
     } finally {
       setSaving(false);
     }
   };
+
+  useEffect(() => {
+    if (!ok) return undefined;
+    const timeout = setTimeout(() => setOk(""), 2500);
+    return () => clearTimeout(timeout);
+  }, [ok]);
+
+  useEffect(() => {
+    if (!documentsOpen) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    const closeOnEscape = (event) => {
+      if (event.key === "Escape") setDocumentsOpen(false);
+    };
+    document.body.style.overflow = "hidden";
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [documentsOpen]);
 
   if (!me) {
     return (
@@ -332,18 +329,16 @@ export default function TenantMyForm() {
   const ReadRow = ({ label, children }) => (
     <div>
       <div style={styles.label}>{label}</div>
-      <div style={styles.read}>{children ?? "—"}</div>
+      <div className="tenant-profile-value" style={styles.read}>{children ?? "—"}</div>
     </div>
   );
-  const EditRow = ({ label, name, type = "text" }) => (
-    <div>
-      <div style={styles.label}>{label}</div>
-      <FocusInput
-        type={type}
-        name={name}
-        value={form[name] ?? ""}
-        onChange={(e) => setForm((s) => ({ ...s, [name]: e.target.value }))}
-      />
+  const DetailGrid = ({ rows }) => (
+    <div style={styles.grid}>
+      {rows.map(({ label, value }) => (
+        <ReadRow key={label} label={label}>
+          {value == null || value === "" ? "—" : value}
+        </ReadRow>
+      ))}
     </div>
   );
   const Stat = ({ label, value, tone = "neutral" }) => {
@@ -362,27 +357,107 @@ export default function TenantMyForm() {
   };
 
   const docs = Array.isArray(me.documents) ? me.documents : [];
+  const propertyType = String(me.propertyType || (me.bedNo === "ROOM-1" ? "room" : me.bedNo === "SHOP-1" ? "shop" : "bed")).toLowerCase();
+  const propertyTypeLabel = propertyType === "room" ? "Residential room" : propertyType === "shop" ? "Shop" : "Hostel bed";
+  const formatMoney = (value) => value == null || value === "" ? "—" : `₹${Number(value || 0).toLocaleString("en-IN")}`;
+  const propertyRows = [
+    { label: "Tenant / serial number", value: me.srNo },
+    { label: "Property type", value: propertyTypeLabel },
+    { label: propertyType === "shop" ? "Shop number" : propertyType === "room" ? "Room / flat number" : "Room number", value: me.roomNo },
+    ...(propertyType === "bed" ? [{ label: "Bed number", value: me.bedNo }] : []),
+    { label: "Building / category", value: me.category },
+    { label: "Wing", value: me.wingName },
+    { label: "Floor", value: me.floorNo },
+    ...(propertyType === "shop" ? [
+      { label: "Shop name", value: me.shopName },
+      { label: "Shop business", value: me.shopBusiness },
+    ] : []),
+    { label: "Joining date", value: fmtDate(me.joiningDate) },
+    { label: "Initial rent status", value: me.firstRentStatus === "ADVANCE_PAID" ? "Paid in advance" : me.firstRentStatus === "NOT_PAID" ? "Not paid at joining" : me.firstRentStatus },
+    { label: "First rent month", value: me.firstRentMonth },
+    { label: "Base rent", value: formatMoney(me.baseRent ?? me.rentAmount) },
+    { label: "Security deposit", value: formatMoney(me.depositAmount) },
+  ];
+  const addressRows = [
+    { label: "Local address", value: me.address },
+    { label: "House / flat number", value: me.houseNo },
+    { label: "Nearby place", value: me.nearbyPlace },
+    { label: "City", value: me.city },
+    { label: "State", value: me.state },
+    { label: "Pincode", value: me.pincode },
+    { label: "Previous address", value: me.previousAddress },
+    { label: "Relative address", value: me.relativeAddress1 || me.relativeAddress },
+  ];
+  const householdRows = [
+    { label: "Family members", value: me.familyMembers },
+    { label: "Male", value: me.familyMale ?? 0 },
+    { label: "Female", value: me.familyFemale ?? 0 },
+    { label: "Children", value: me.familyChildren ?? 0 },
+    { label: "Passport number", value: me.passportNo },
+    { label: "PAN number", value: me.panCardNo },
+    { label: "Aadhaar number", value: me.aadhaarCardNo },
+  ];
+  const workRows = [
+    { label: "Nature of work", value: me.natureOfWork },
+    { label: propertyType === "shop" ? "Business address" : "Company / college address", value: me.companyAddress || me.officeAddress },
+    { label: "Office name", value: me.officeName },
+    { label: "Office mobile", value: me.officeMobileNo },
+    { label: "Date of joining college / company", value: fmtDate(me.dateOfJoiningCollege) },
+  ];
+  const canteenRows = [
+    { label: "Canteen", value: me.hasCanteen ? "Enrolled" : "Not enrolled" },
+    { label: "Plan", value: String(me.canteenPlanType || "—").replace(/_/g, " ") },
+    { label: "Start date", value: fmtDate(me.canteenStartDate) },
+    { label: "Monthly amount", value: formatMoney(me.canteenMonthlyAmount) },
+    { label: "Included meals", value: Array.isArray(me.canteenIncludedMeals) && me.canteenIncludedMeals.length ? me.canteenIncludedMeals.join(", ") : "—" },
+    { label: "Meal prices", value: me.canteenMealPrices ? [
+      me.canteenMealPrices.breakfast ? `Breakfast ${formatMoney(me.canteenMealPrices.breakfast)}` : null,
+      me.canteenMealPrices.lunch ? `Lunch ${formatMoney(me.canteenMealPrices.lunch)}` : null,
+      me.canteenMealPrices.dinner ? `Dinner ${formatMoney(me.canteenMealPrices.dinner)}` : null,
+    ].filter(Boolean).join(" · ") || "—" : "—" },
+  ];
 
   return (
-    <div style={styles.page}>
-      <div style={styles.container}>
+    <div className="tenant-profile-page" style={styles.page}>
+      <div className="tenant-profile-container" style={styles.container}>
+        <div className="tenant-profile-page-heading">
+          <div>
+            <span>ACCOUNT SETTINGS</span>
+            <h1>Profile</h1>
+            <p>Update personal details; property and tenancy information stays read-only.</p>
+          </div>
+          <div className="tenant-profile-breadcrumb"><span>Tenant portal</span><b>›</b><strong>Profile</strong></div>
+        </div>
         {/* Banner: Avatar + identity + stats + actions */}
-        <div style={styles.banner}>
-          {/* <img src={avatarSrc} alt="avatar" style={styles.avatar} /> */}
-          <div style={styles.headingWrap} >
-            <h2 style={styles.title}>{me.name || "—"}</h2>
-            <div style={styles.sub}>
-              {me.roomNo ? `Room ${me.roomNo}` : "—"} {me.bedNo ? " • Bed " + me.bedNo : ""}
+        <div className={`tenant-profile-banner${editing ? " is-editing" : ""}`} style={styles.banner}>
+          <div className="tenant-profile-avatar" aria-hidden="true">
+            {String(me.name || "Tenant").trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase()}
+            <img src={avatarSrc} alt="" onError={(event) => { event.currentTarget.style.display = "none"; }} />
+          </div>
+          <div className="tenant-profile-heading-wrap" style={styles.headingWrap} >
+            <h2 className="tenant-profile-name" style={styles.title}>{me.name || "—"}</h2>
+            <div className="tenant-profile-sub" style={styles.sub}>
+              {propertyType === "shop" ? `Shop ${me.roomNo || "—"}` : propertyType === "room" ? `Room ${me.roomNo || "—"}` : `Room ${me.roomNo || "—"} · Bed ${me.bedNo || "—"}`}
             </div>
-            <div style={styles.chipRow} >
-              <span style={styles.chip}>📞 {me.phoneNo || "—"}</span>
+            <div className="tenant-profile-chip-row" style={styles.chipRow} >
+              <span className="tenant-profile-chip" style={styles.chip}>📞 {me.phoneNo || "—"}</span>
               {/* <span style={{ ...styles.chip, ...styles.chipStrong }}>SR NO: {me.srNo ?? "—"}</span> */}
               {me?.ekyc?.status && (
-                <span style={{ ...styles.chip, borderColor: colors.brand2, color: colors.brand2 }}>
+                <span className="tenant-profile-chip" style={{ ...styles.chip, borderColor: colors.brand2, color: colors.brand2 }}>
                   ✅ eKYC: {String(me.ekyc.status).toUpperCase()}
                 </span>
               )}
             </div>
+          </div>
+          <div className="tenant-profile-toolbar">
+            {editing ? (
+              <>
+                <button type="button" className="tenant-profile-cancel" onClick={() => { setEditing(false); setErr(""); }}>Cancel</button>
+                <button type="button" className="tenant-profile-save" onClick={saveProfile} disabled={saving}>{saving ? "Saving…" : "Save changes"}</button>
+              </>
+            ) : (
+              <button type="button" className="tenant-profile-edit" onClick={startEditing}>Edit profile</button>
+            )}
           </div>
 
           {/* <div style={styles.statWrap}>
@@ -391,163 +466,143 @@ export default function TenantMyForm() {
             <Stat label="Deposit (₹)" value={me.depositAmount} tone="success" />
           </div> */}
 
-          <div style={styles.toolbar}>
-            {!edit ? (
-              <button style={styles.btn} onClick={() => setEdit(true)}>Edit</button>
-            ) : (
-              <>
-                <button style={styles.btn} onClick={() => setEdit(false)}>Cancel</button>
-                <button style={styles.btnPri} onClick={save} disabled={saving}>
-                  {saving ? "Saving..." : "Save"}
-                </button>
-              </>
-            )}
+        </div>
+
+        <div className="tenant-profile-summary">
+          <div className="tenant-profile-summary-card tenant-profile-summary-unit">
+            <span>Property type</span><strong>{propertyTypeLabel}</strong><small>{me.category || "Your property"}</small>
           </div>
+          <div className="tenant-profile-summary-card tenant-profile-summary-rent">
+            <span>Monthly rent</span><strong>₹{Number(me.baseRent ?? me.rentAmount ?? 0).toLocaleString("en-IN")}</strong><small>As per your tenancy record</small>
+          </div>
+          <div className="tenant-profile-summary-card tenant-profile-summary-deposit">
+            <span>Security deposit</span><strong>₹{Number(me.depositAmount || 0).toLocaleString("en-IN")}</strong><small>Recorded deposit</small>
+          </div>
+          <div className="tenant-profile-summary-card tenant-profile-summary-date">
+            <span>Joined</span><strong>{fmtDate(me.joiningDate)}</strong><small>{propertyType === "shop" ? `Shop ${me.roomNo || "—"}` : `Room ${me.roomNo || "—"}${propertyType === "bed" ? ` · Bed ${me.bedNo || "—"}` : ""}`}</small>
+          </div>
+          <button type="button" className="tenant-profile-summary-card tenant-profile-summary-docs" onClick={() => setDocumentsOpen(true)} aria-haspopup="dialog">
+            <span className="tenant-profile-docs-label"><FiFileText aria-hidden="true" /> Documents</span><strong>{docs.length}</strong><small>View or update documents</small>
+          </button>
         </div>
 
         {err && (
-          <div style={{ ...styles.card, borderColor: colors.danger, background: "#fff7f7", color: "#991b1b" }}>
+          <div className="tenant-profile-message" style={{ ...styles.card, borderColor: colors.danger, background: "#fff7f7", color: "#991b1b" }}>
             {err}
           </div>
         )}
-        {ok && <div style={styles.toast}>{ok}</div>}
-
+        {ok && <div className="tenant-profile-success">{ok}</div>}
         {/* Account */}
-        <div style={styles.card}>
+        <div className="tenant-profile-card" style={styles.card}>
           <div style={styles.sectionTitle}>Account</div>
           <div style={styles.grid}>
-            {edit ? (
-              <>
-                <EditRow label="Full Name" name="name" />
-                {/* <EditRow label="Email" name="email" type="email" /> */}
-                <EditRow label="Date of Birth" name="dob" type="date" />
-              </>
-            ) : (
-              <>
-                <ReadRow label="Full Name">{me.name}</ReadRow>
-                {/* <ReadRow label="Email">{me.email}</ReadRow> */}
-                 <ReadRow label="Phone (read-only)">{me.phoneNo}</ReadRow>
-                <ReadRow label="Date of Birth">{fmtDate(me.dob)}</ReadRow>
-               
-              </>
-            )}
+            {editing ? <EditableRow label="Full Name" value={draft.name} onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} /> : <ReadRow label="Full Name">{me.name}</ReadRow>}
+            <ReadRow label="Phone">{me.phoneNo}</ReadRow>
+            {editing ? <EditableRow label="Date of Birth" type="date" value={draft.dob} onChange={(event) => setDraft((current) => ({ ...current, dob: event.target.value }))} /> : <ReadRow label="Date of Birth">{fmtDate(me.dob)}</ReadRow>}
           </div>
         </div>
 
         {/* Stay */}
-        <div style={styles.card}>
-          <div style={styles.sectionTitle}>Stay Details</div>
-          <div style={styles.grid}>
-            <ReadRow label="Joining Date">{fmtDate(me.joiningDate)}</ReadRow>
-            <ReadRow label="Room No.">{me.roomNo}</ReadRow>
-            <ReadRow label="Bed No.">{me.bedNo}</ReadRow>
-            <ReadRow label="Base Rent (₹)">{me.baseRent}</ReadRow>
-            <ReadRow label="Rent Amount (₹)">{me.rentAmount}</ReadRow>
-            <ReadRow label="Deposit (₹)">{me.depositAmount}</ReadRow>
-          </div>
+        <div className="tenant-profile-card" style={styles.card}>
+          <div style={styles.sectionTitle}>Property & Stay Details</div>
+          <DetailGrid rows={propertyRows} />
         </div>
 
         {/* Address */}
-        <div style={styles.card}>
+        <div className="tenant-profile-card" style={styles.card}>
           <div style={styles.sectionTitle}>Addresses</div>
           <div style={styles.grid}>
-            {edit ? (
-              <>
-                <EditRow label="Current Address" name="address" />
-                <EditRow label="Relative Address" name="relativeAddress1" />
-                <EditRow label="Company / College" name="companyAddress" />
-                <EditRow label="Date of Joining College/Office" name="dateOfJoiningCollege" type="date" />
-              </>
-            ) : (
-              <>
-                <ReadRow label="Current Address">{me.address}</ReadRow>
-                <ReadRow label="Relative Address">{me.relativeAddress1 || me.relativeAddress}</ReadRow>
-                <ReadRow label="Company / College">{me.companyAddress}</ReadRow>
-                <ReadRow label="Date of Joining College/Office">{fmtDate(me.dateOfJoiningCollege)}</ReadRow>
-              </>
-            )}
+            {editing ? <EditableRow label="Current Address" value={draft.address} onChange={(event) => setDraft((current) => ({ ...current, address: event.target.value }))} /> : <ReadRow label="Current Address">{me.address}</ReadRow>}
+            <ReadRow label="Relative Address">{me.relativeAddress1 || me.relativeAddress}</ReadRow>
+            {editing ? <EditableRow label="Company / College" value={draft.companyAddress} onChange={(event) => setDraft((current) => ({ ...current, companyAddress: event.target.value }))} /> : <ReadRow label="Company / College">{me.companyAddress}</ReadRow>}
+            <ReadRow label="Date of Joining College/Office">{fmtDate(me.dateOfJoiningCollege)}</ReadRow>
           </div>
         </div>
 
-        {/* Relatives / Emergency */}
-        <div style={styles.card}>
-          <div style={styles.sectionTitle}>Relatives & Emergency</div>
-          <div style={styles.grid}>
-            {edit ? (
-              <>
-                <EditRow label="Relative 1: Relation" name="relative1Relation" />
-                <EditRow label="Relative 1: Name" name="relative1Name" />
-                <EditRow label="Relative 1: Phone" name="relative1Phone" />
-                <EditRow label="Relative 2: Relation" name="relative2Relation" />
-                <EditRow label="Relative 2: Name" name="relative2Name" />
-                <EditRow label="Relative 2: Phone" name="relative2Phone" />
-                <EditRow label="Emergency Contact" name="emergencyContact" />
-                <EditRow label="Emergency Relation" name="emergencyRelation" />
-              </>
-            ) : (
-              <>
-                <ReadRow label="Relative 1: Relation">{me.relative1Relation}</ReadRow>
-                <ReadRow label="Relative 1: Name">{me.relative1Name}</ReadRow>
-                <ReadRow label="Relative 1: Phone">{me.relative1Phone}</ReadRow>
-                <ReadRow label="Relative 2: Relation">{me.relative2Relation}</ReadRow>
-                <ReadRow label="Relative 2: Name">{me.relative2Name}</ReadRow>
-                <ReadRow label="Relative 2: Phone">{me.relative2Phone}</ReadRow>
-                <ReadRow label="Emergency Contact">{me.emergencyContact}</ReadRow>
-                <ReadRow label="Emergency Relation">{me.emergencyRelation}</ReadRow>
-              </>
-            )}
-          </div>
+        <div className="tenant-profile-card" style={styles.card}>
+          <div style={styles.sectionTitle}>Additional Address Details</div>
+          <DetailGrid rows={addressRows.slice(1, 7)} />
         </div>
 
-        {/* eKYC */}
-        <div style={styles.card}>
-          <div style={styles.sectionTitle}>eKYC</div>
-          <div style={styles.grid}>
-            <ReadRow label="Status">{me?.ekyc?.status || "not_started"}</ReadRow>
-            <div>
-              <div style={styles.label}>Selfie</div>
-              {me?.ekyc?.selfieUrl ? (
-                <img
-                  src={fullUrl(me.ekyc.selfieUrl)}
-                  alt="selfie"
-                  style={{ width: "100%", maxWidth: 220, borderRadius: 12, border: `1px solid ${colors.line}` }}
-                />
-              ) : (
-                <div style={styles.read}>—</div>
+        {propertyType === "room" && (
+          <>
+            <div className="tenant-profile-card" style={styles.card}>
+              <div style={styles.sectionTitle}>Household & Identity Details</div>
+              <DetailGrid rows={householdRows} />
+              {(Array.isArray(me.otherFamilyMembers) ? me.otherFamilyMembers : []).length > 0 && (
+                <div style={{ ...styles.grid, marginTop: 12 }}>
+                  {me.otherFamilyMembers.map((member, index) => (
+                    <ReadRow key={`family-${index}`} label={`Family member ${index + 1}`}>
+                      {[member.name, member.age ? `Age ${member.age}` : "", member.occupation, member.phone]
+                        .filter(Boolean).join(" · ") || "—"}
+                    </ReadRow>
+                  ))}
+                </div>
               )}
             </div>
+            <div className="tenant-profile-card" style={styles.card}>
+              <div style={styles.sectionTitle}>Work & Office Details</div>
+              <DetailGrid rows={workRows} />
+            </div>
+          </>
+        )}
+
+        {propertyType === "bed" && (
+          <>
+            <div className="tenant-profile-card" style={styles.card}>
+              <div style={styles.sectionTitle}>College / Work Details</div>
+              <DetailGrid rows={workRows} />
+            </div>
+            <div className="tenant-profile-card" style={styles.card}>
+              <div style={styles.sectionTitle}>Canteen Details</div>
+              <DetailGrid rows={canteenRows} />
+            </div>
+          </>
+        )}
+
+        {propertyType === "shop" && (
+          <div className="tenant-profile-card" style={styles.card}>
+            <div style={styles.sectionTitle}>Business Details</div>
+            <DetailGrid rows={[
+              { label: "Shop name", value: me.shopName },
+              { label: "Business / activity", value: me.shopBusiness },
+              { label: "Business address", value: me.companyAddress },
+              { label: "Date of joining", value: fmtDate(me.dateOfJoiningCollege) },
+            ]} />
+          </div>
+        )}
+
+        {/* Relatives / Emergency */}
+        <div className="tenant-profile-card" style={styles.card}>
+          <div style={styles.sectionTitle}>Relatives & Emergency</div>
+          <div style={styles.grid}>
+            <ReadRow label="Relative 1: Relation">{me.relative1Relation}</ReadRow>
+            <ReadRow label="Relative 1: Name">{me.relative1Name}</ReadRow>
+            <ReadRow label="Relative 1: Phone">{me.relative1Phone}</ReadRow>
+            <ReadRow label="Relative 2: Relation">{me.relative2Relation}</ReadRow>
+            <ReadRow label="Relative 2: Name">{me.relative2Name}</ReadRow>
+            <ReadRow label="Relative 2: Phone">{me.relative2Phone}</ReadRow>
+            {editing ? <EditableRow label="Emergency Contact" value={draft.emergencyContact} onChange={(event) => setDraft((current) => ({ ...current, emergencyContact: event.target.value }))} /> : <ReadRow label="Emergency Contact">{me.emergencyContact}</ReadRow>}
+            <ReadRow label="Emergency Relation">{me.emergencyRelation}</ReadRow>
           </div>
         </div>
 
-        {/* Documents */}
-        <div style={styles.card}>
-          <div style={styles.sectionTitle}>Documents</div>
-          {docs.length ? (
-            <div style={styles.docGrid}>
-              {docs.map((d, i) => (
-                <DocTile key={d._id || d.url || i} doc={d} />
-              ))}
-            </div>
-          ) : (
-            <div style={{ color: colors.sub }}>No documents uploaded.</div>
-          )}
-        </div>
+        {/* eKYC section is hidden for now and can be restored when the feature is enabled. */}
+
+        {documentsOpen && (
+          <div className="tenant-profile-documents-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setDocumentsOpen(false); }}>
+            <section className="tenant-profile-documents-modal" role="dialog" aria-modal="true" aria-labelledby="tenant-documents-title">
+              <header className="tenant-profile-documents-modal-header">
+                <div><span>PROFILE FILES</span><h2 id="tenant-documents-title">Tenant documents</h2><p>{docs.length} file{docs.length === 1 ? "" : "s"} saved to your profile</p></div>
+                <button type="button" onClick={() => setDocumentsOpen(false)} aria-label="Close documents">×</button>
+              </header>
+              <div className="tenant-profile-documents-modal-body">
+                <TenantDocs me={me} onChanged={refreshProfile} embedded />
+              </div>
+            </section>
+          </div>
+        )}
       </div>
     </div>
-  );
-}
-
-function DocTile({ doc }) {
-  const url = fullUrl(doc?.url);
-  return (
-    <a href={url} target="_blank" rel="noreferrer" title={doc?.fileName || "Document"} style={styles.docCard}>
-      {url ? <img src={url} alt={doc?.fileName || "doc"} style={styles.docImg} /> : null}
-      <div style={styles.docMeta}>
-        <div style={styles.docName}>{doc?.fileName || "Document"}</div>
-        <div style={{ color: colors.sub }}>
-          {doc?.relation || "Self"} {doc?.size ? `• ${(doc.size / 1024).toFixed(0)} KB` : ""}
-        </div>
-      </div>
-    </a>
   );
 }

@@ -2843,7 +2843,55 @@
   }
 
   .rent-mobile-bottom-bar {
-    display: none !important;
+    position: fixed;
+    left: 10px;
+    right: 10px;
+    bottom: 10px;
+    z-index: 2200;
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    padding: 8px;
+    border: 1px solid rgba(95, 125, 252, 0.14);
+    border-radius: 22px;
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 16px 32px rgba(15, 23, 42, 0.14);
+    backdrop-filter: blur(16px);
+  }
+
+  .rent-mobile-view {
+    padding-bottom: 104px;
+  }
+
+  .rent-mobile-bottom-action {
+    display: flex;
+    min-width: 0;
+    min-height: 62px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 6px;
+    border: 0;
+    border-radius: 16px;
+    background: linear-gradient(180deg, #f8fbff, #eef2ff);
+    color: #334155;
+    font-size: 12px;
+    font-weight: 900;
+    line-height: 1.1;
+    box-shadow: 0 6px 14px rgba(15, 23, 42, 0.06);
+  }
+
+  .rent-mobile-bottom-icon {
+    display: inline-flex;
+    width: 28px;
+    height: 28px;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    background: #5f7dfc;
+    color: #fff;
+    font-size: 13px;
   }
   .rent-mobile-tenant-card    {
     width: 100%;}
@@ -2852,3 +2900,154 @@
     .rent-table-wrapper table{
       width:auto;
     }} */
+/* Responsive layout for the shared tenant/family document uploader. */
+.family-doc-upload-section,
+.family-doc-upload-entry,
+.family-doc-upload-picker {
+  min-width: 0;
+}
+
+.family-doc-upload-row {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+  margin: 0;
+}
+
+.family-doc-upload-row > [class*="col-"] {
+  width: auto;
+  max-width: 100%;
+  padding: 0;
+}
+
+.family-doc-upload-row .form-label {
+  display: block;
+  margin-bottom: 6px;
+  line-height: 1.35;
+}
+
+.family-doc-upload-row .form-select {
+  width: 100%;
+  min-width: 0;
+  min-height: 40px;
+  text-overflow: ellipsis;
+}
+
+.family-doc-upload-picker {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  height: auto !important;
+  padding: 12px !important;
+}
+
+.family-doc-picker,
+.family-doc-remove {
+  grid-column: 1 / -1;
+}
+
+.family-doc-upload-picker > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.family-doc-upload-picker .form-label {
+  overflow-wrap: anywhere;
+}
+
+.family-doc-upload-picker .d-flex {
+  align-items: flex-start;
+}
+
+.family-doc-upload-picker .btn {
+  white-space: normal;
+  text-align: center;
+}
+
+.family-doc-file-row {
+  min-width: 0;
+}
+
+.family-doc-file-name {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.family-doc-file-actions {
+  flex: 0 0 auto;
+}
+
+.family-doc-icon-button {
+  display: inline-flex;
+  width: 34px;
+  height: 32px;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+}
+
+.family-doc-remove {
+    display: flex;
+    justify-content: flex-start;
+    padding: 0 !important;
+    flex-direction: row-reverse;
+}
+
+/* The uploader lives in a modal form, so its usable width can be tablet-sized
+   even on a desktop viewport. Keep selectors side by side and use the full row
+   width for document uploads and the row action. */
+@media (max-width: 1200px) {
+  .family-doc-upload-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .family-doc-upload-section > .border {
+    padding: 12px !important;
+  }
+
+  .family-doc-upload-entry {
+    padding: 12px !important;
+    margin-bottom: 12px !important;
+  }
+
+  .family-doc-upload-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+    align-items: stretch;
+  }
+
+  .family-doc-person,
+  .family-doc-type,
+  .family-doc-picker,
+  .family-doc-remove {
+    grid-column: auto;
+    grid-row: auto;
+  }
+
+  .family-doc-remove {
+    justify-content: flex-start;
+  }
+
+  .family-doc-remove .btn {
+    min-height: 40px;
+  }
+
+  .family-doc-upload-picker .d-flex {
+    gap: 8px !important;
+  }
+
+  .family-doc-upload-picker .btn {
+    flex: 1 1 130px;
+  }
+}
+
+
+@media (max-width: 768px) {
+    .rent-table-wrapper table {
+        min-width: 100%;
+    }
+}

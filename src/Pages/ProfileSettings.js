@@ -61,11 +61,13 @@ const unitFields = [
 ];
 const emptyPinForm = { pin: "", confirm: "", currentPin: "", password: "", reset: false };
 const ownerDocumentFields = [
+  { key: "logo", label: "Business logo", hint: "Shown on tenant admission and verification forms", Icon: FiBriefcase },
   { key: "photo", label: "Owner photo", hint: "A clear photo of the owner", Icon: FiCamera },
   { key: "aadhaar", label: "Aadhaar card", hint: "A readable image of the card", Icon: FiFileText },
   { key: "pan", label: "PAN card", hint: "A readable image of the card", Icon: FiCreditCard },
+  { key: "qr", label: "Rent payment QR code", hint: "Tenants will see this QR in Bills & Payments", Icon: FiCreditCard },
 ];
-const emptyOwnerDocuments = { photo: null, aadhaar: null, pan: null };
+const emptyOwnerDocuments = { logo: null, photo: null, aadhaar: null, pan: null };
 
 const formatDate = (value) => {
   if (!value) return "-";
@@ -96,6 +98,8 @@ export default function ProfileSettings() {
   const [error, setError] = useState("");
   const [showUpgrade, setShowUpgrade] = useState(false);
   const [showUnitsModal, setShowUnitsModal] = useState(false);
+  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false);
+  const [showDocumentsModal, setShowDocumentsModal] = useState(false);
   const [showPinModal, setShowPinModal] = useState(false);
   const [upgradeUnits, setUpgradeUnits] = useState({ beds: "", rooms: "", shops: "" });
   const [useWallet, setUseWallet] = useState(true);
@@ -159,12 +163,14 @@ export default function ProfileSettings() {
   }, []);
 
   useEffect(() => {
-    if (!showUnitsModal && !showPinModal) return undefined;
+    if (!showUnitsModal && !showSubscriptionModal && !showDocumentsModal && !showPinModal) return undefined;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     const closeOnEscape = (event) => {
       if (event.key === "Escape") {
         setShowUnitsModal(false);
+        setShowSubscriptionModal(false);
+        setShowDocumentsModal(false);
         closePinModal();
       }
     };
@@ -173,7 +179,7 @@ export default function ProfileSettings() {
       document.body.style.overflow = previousOverflow;
       document.removeEventListener("keydown", closeOnEscape);
     };
-  }, [showUnitsModal, showPinModal, closePinModal]);
+  }, [showUnitsModal, showSubscriptionModal, showDocumentsModal, showPinModal, closePinModal]);
 
   const subscription = bootstrap?.subscription || {};
   const access = bootstrap?.access || {};
@@ -203,10 +209,10 @@ export default function ProfileSettings() {
   const canteenEnabled = Boolean(organization.features?.canteenEnabled);
 
   const saveOwnerDocument = async (kind, label, file) => {
-    const isImage = ["image/jpeg", "image/png"].includes(file.type) && /\.(jpe?g|png)$/i.test(file.name);
-    const isPdf = kind !== "photo" && file.type === "application/pdf" && /\.pdf$/i.test(file.name);
+    const isImage = ["image/jpeg", "image/png", "image/webp"].includes(file.type) && /\.(jpe?g|png|webp)$/i.test(file.name);
+    const isPdf = !["photo", "logo", "qr"].includes(kind) && file.type === "application/pdf" && /\.pdf$/i.test(file.name);
     if (!isImage && !isPdf) {
-      setOwnerDocumentError(kind === "photo" ? "Choose a JPG or PNG owner photo." : "Choose a JPG, PNG, or PDF document.");
+      setOwnerDocumentError(["photo", "logo"].includes(kind) ? "Choose a JPG, PNG, or WEBP image." : "Choose a JPG, PNG, or PDF document.");
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
@@ -415,11 +421,12 @@ export default function ProfileSettings() {
           <div className="profile-hero-message"><strong>Manage your account</strong><span>Keep your business information, subscription and security settings up to date.</span></div>
         </section>
 
-        <section className="profile-stat-grid" aria-label="Profile overview">
+        <section className={`profile-stat-grid${user.role === "system_admin" ? " has-documents" : ""}`} aria-label="Profile overview">
           <button type="button" className="profile-stat-card profile-stat-blue" onClick={() => { setError(""); setNotice(""); setShowUnitsModal(true); }}><FiHome /><div><span>Registered units</span><strong>{number(totalUnits)}</strong><small>{flexible ? "Manage property types" : "View capacity"}</small></div></button>
-          <button type="button" className="profile-stat-card profile-stat-plan" onClick={() => scrollToProfileSection("profile-subscription")}><FiGift /><div><span>Subscription</span><strong>{subscriptionStatus}</strong><small>View subscription details</small></div></button>
+          <button type="button" className="profile-stat-card profile-stat-plan" onClick={() => setShowSubscriptionModal(true)}><FiGift /><div><span>Subscription</span><strong>{subscriptionStatus}</strong><small>View subscription details</small></div></button>
           <button type="button" className="profile-stat-card profile-stat-wallet" onClick={() => scrollToProfileSection("profile-wallet")}><FiDatabase /><div><span>Wallet coins</span><strong>{number(walletBalance)}</strong><small>View activity</small></div></button>
           <button type="button" className="profile-stat-card profile-stat-purple" onClick={() => { setError(""); setNotice(""); setPinForm(emptyPinForm); setShowPinModal(true); }}><FiShield /><div><span>Security PIN</span><strong>{pinConfigured ? "Set" : "Not set"}</strong><small>{pinConfigured ? "Manage PIN" : "Set PIN"}</small></div></button>
+          {user.role === "system_admin" && <button type="button" className="profile-stat-card profile-stat-documents" onClick={() => setShowDocumentsModal(true)}><FiFileText /><div><span>Documents</span><strong>{number(ownerDocumentFields.filter(({ key }) => key !== "qr" && ownerDocuments?.[key]?.url).length)}</strong><small>View owner documents</small></div></button>}
         </section>
 
         <div className="profile-main-columns">
@@ -469,44 +476,6 @@ export default function ProfileSettings() {
               </label>
               {!canChangeUnits && <p className="profile-card-copy mb-0">Activate or renew your subscription to change this feature.</p>}
             </section>}
-            {user.role === "system_admin" && <section className="profile-card profile-owner-documents" id="profile-owner-documents">
-              <div className="profile-section-heading">
-                <div><h2><FiFileText /> Owner documents</h2><p>Save the owner's photo and identity cards for police verification.</p></div>
-              </div>
-              {ownerDocumentError && <div className="profile-message error" role="alert">{ownerDocumentError}</div>}
-              {ownerDocumentNotice && <div className="profile-message success" role="status"><FiCheckCircle />{ownerDocumentNotice}</div>}
-              {access.readOnly && <div className="profile-owner-document-readonly"><FiInfo /><span>Your subscription is view only. Renew it to upload or change owner documents.</span><Link to="/subscription-expired">Renew subscription</Link></div>}
-              <div className="profile-owner-document-grid">
-                {ownerDocumentFields.map(({ key, label, hint, Icon }) => {
-                  const document = ownerDocuments?.[key];
-                  return <article className="profile-owner-document" key={key}>
-                    <div className="profile-owner-document-heading"><Icon /><div><strong>{label}</strong><small>{hint}</small></div></div>
-                    {document?.url
-                      ? <a className={`profile-owner-document-preview${key === "photo" ? " is-photo" : ""}`} href={document.url} target="_blank" rel="noopener noreferrer" aria-label={`View ${label}`}>{document.mimeType === "application/pdf" ? <span className="profile-owner-document-pdf"><FiFileText /> PDF document</span> : <img src={document.url} alt={label} />}<span className="profile-owner-document-view"><FiExternalLink /> View {document.mimeType === "application/pdf" ? "PDF" : "image"}</span></a>
-                      : <div className="profile-owner-document-placeholder"><Icon /><span>No image uploaded</span></div>}
-                    {document && <small className="profile-owner-document-date">Saved {formatDate(document.uploadedAt)}</small>}
-                    <div className="profile-owner-document-actions">
-                      {!access.readOnly && <label className="profile-owner-upload"><FiUpload /> {ownerDocumentBusy === key ? "Saving…" : document ? "Replace" : "Upload"}<input type="file" accept={key === "photo" ? "image/jpeg,image/png,.jpg,.jpeg,.png" : "image/jpeg,image/png,application/pdf,.jpg,.jpeg,.png,.pdf"} disabled={Boolean(ownerDocumentBusy)} onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; if (file) saveOwnerDocument(key, label, file); }} /></label>}
-                      {access.readOnly && <Link className="profile-owner-upload" to="/subscription-expired"><FiUpload /> Renew to upload</Link>}
-                      {document && !access.readOnly && <button type="button" className="profile-owner-remove" onClick={() => setConfirmRemoveOwnerDocument(key)} disabled={Boolean(ownerDocumentBusy)} aria-label={`Remove ${label}`}><FiTrash2 /> Remove</button>}
-                    </div>
-                    {confirmRemoveOwnerDocument === key && <div className="profile-owner-remove-confirm"><span>Remove {label.toLowerCase()}?</span><button type="button" onClick={() => deleteOwnerDocument(key, label)} disabled={Boolean(ownerDocumentBusy)}>Yes, remove</button><button type="button" onClick={() => setConfirmRemoveOwnerDocument("")} disabled={Boolean(ownerDocumentBusy)}>Cancel</button></div>}
-                  </article>;
-                })}
-              </div>
-              <p className="profile-owner-document-help">Photo: JPG or PNG. Cards: JPG, PNG, or PDF. Maximum 5 MB per file.</p>
-            </section>}
-            <section className="profile-card profile-subscription-card" id="profile-subscription">
-              <div className="profile-section-heading"><h2><FiCreditCard /> Subscription</h2>{(access.readOnly || access.expired || access.needsPayment) && <Link className="profile-section-action" to="/subscription-expired"><FiRefreshCw /> {access.needsPayment ? "Complete payment" : "Renew subscription"}</Link>}</div>
-              <span className={`profile-status ${access.readOnly ? "profile-status-read-only" : access.expired || access.needsPayment ? "profile-status-inactive" : ""}`}>{subscriptionStatus}</span>
-              <div className="profile-subscription">
-                <p><FiCreditCard /><span>Plan amount<strong>{money(subscription.amount, subscription.currency)}</strong></span></p>
-                <p><FiCalendar /><span>Valid until<strong>{formatDate(subscription.endDate)}</strong></span></p>
-                <p><FiClock /><span>Duration<strong>{subscription.durationMonths ? `${subscription.durationMonths} months` : "-"}</strong></span></p>
-              </div>
-              {access.readOnly && <p className="profile-read-only-note"><FiInfo /> You can view and download your data until {formatDate(access.readOnlyUntil)}. Renew your subscription to add or change records.</p>}
-              <div className="profile-unit-grid">{unitFields.map(({ key, label }) => <div key={key}>{key === "beds" ? <FiLayers /> : key === "rooms" ? <FiHome /> : <FiBriefcase />}<strong>{flexible && isTrial && !organization.unitCountsConfigured ? "Not set" : number(units[key])}</strong><span>{label} capacity</span></div>)}</div>
-            </section>
           </div>
 
           <div className="profile-column">
@@ -534,6 +503,67 @@ export default function ProfileSettings() {
         </div>
         </div>
       </div>
+      {showSubscriptionModal && createPortal(
+        <div className="profile-units-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowSubscriptionModal(false); }}>
+          <section className="profile-units-dialog profile-subscription-dialog profile-subscription-card" role="dialog" aria-modal="true" aria-labelledby="profile-subscription-title">
+            <header className="profile-units-dialog-header">
+              <div><h2 id="profile-subscription-title"><FiCreditCard /> Subscription</h2><p>Plan validity and included unit capacity.</p></div>
+              <button type="button" className="profile-units-close" onClick={() => setShowSubscriptionModal(false)} aria-label="Close subscription details" autoFocus><FiX /></button>
+            </header>
+            <div className="profile-units-dialog-body profile-subscription-modal-body">
+              <span className={`profile-status ${access.readOnly ? "profile-status-read-only" : access.expired || access.needsPayment ? "profile-status-inactive" : ""}`}>{subscriptionStatus}</span>
+              <div className="profile-subscription">
+                <p><FiCreditCard /><span>Plan amount<strong>{money(subscription.amount, subscription.currency)}</strong></span></p>
+                <p><FiCalendar /><span>Valid until<strong>{formatDate(subscription.endDate)}</strong></span></p>
+                <p><FiClock /><span>Duration<strong>{subscription.durationMonths ? `${subscription.durationMonths} months` : "-"}</strong></span></p>
+              </div>
+              {access.readOnly && <p className="profile-read-only-note"><FiInfo /> You can view and download your data until {formatDate(access.readOnlyUntil)}. Renew your subscription to add or change records.</p>}
+              <div className="profile-unit-grid">{unitFields.map(({ key, label }) => <div key={key}>{key === "beds" ? <FiLayers /> : key === "rooms" ? <FiHome /> : <FiBriefcase />}<strong>{flexible && isTrial && !organization.unitCountsConfigured ? "Not set" : number(units[key])}</strong><span>{label} capacity</span></div>)}</div>
+            </div>
+            <footer className="profile-units-dialog-footer">
+              {(access.readOnly || access.expired || access.needsPayment) && <Link className="profile-section-action" to="/subscription-expired"><FiRefreshCw /> {access.needsPayment ? "Complete payment" : "Renew subscription"}</Link>}
+              <button type="button" className="profile-outline-button" onClick={() => setShowSubscriptionModal(false)}>Close</button>
+            </footer>
+          </section>
+        </div>,
+        document.body
+      )}
+      {showDocumentsModal && createPortal(
+        <div className="profile-units-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowDocumentsModal(false); }}>
+          <section className="profile-units-dialog profile-documents-dialog" role="dialog" aria-modal="true" aria-labelledby="profile-documents-title">
+            <header className="profile-units-dialog-header">
+              <div><h2 id="profile-documents-title"><FiFileText /> Business documents &amp; payment QR</h2><p>Manage owner documents and the rent payment QR shown in the tenant portal.</p></div>
+              <button type="button" className="profile-units-close" onClick={() => setShowDocumentsModal(false)} aria-label="Close owner documents" autoFocus><FiX /></button>
+            </header>
+            <div className="profile-units-dialog-body profile-documents-modal-body">
+              {ownerDocumentError && <div className="profile-message error" role="alert">{ownerDocumentError}</div>}
+              {ownerDocumentNotice && <div className="profile-message success" role="status"><FiCheckCircle />{ownerDocumentNotice}</div>}
+              {access.readOnly && <div className="profile-owner-document-readonly"><FiInfo /><span>Your subscription is view only. Renew it to upload or change owner documents.</span><Link to="/subscription-expired">Renew subscription</Link></div>}
+              <div className="profile-owner-document-grid">
+                {ownerDocumentFields.map(({ key, label, hint, Icon }) => {
+                  const document = ownerDocuments?.[key];
+                  return <article className="profile-owner-document" key={key}>
+                    <div className="profile-owner-document-heading"><Icon /><div><strong>{label}</strong><small>{hint}</small></div></div>
+                    {document?.url
+                      ? <a className={`profile-owner-document-preview${key === "photo" ? " is-photo" : ""}`} href={document.url} target="_blank" rel="noopener noreferrer" aria-label={`View ${label}`}>{document.mimeType === "application/pdf" ? <span className="profile-owner-document-pdf"><FiFileText /> PDF document</span> : <img src={document.url} alt={label} />}<span className="profile-owner-document-view"><FiExternalLink /> View {document.mimeType === "application/pdf" ? "PDF" : "image"}</span></a>
+                      : <div className="profile-owner-document-placeholder"><Icon /><span>No image uploaded</span></div>}
+                    {document && <small className="profile-owner-document-date">Saved {formatDate(document.uploadedAt)}</small>}
+                    <div className="profile-owner-document-actions">
+                      {!access.readOnly && <label className="profile-owner-upload"><FiUpload /> {ownerDocumentBusy === key ? "Saving…" : document ? "Replace" : "Upload"}<input type="file" accept={["photo", "logo", "qr"].includes(key) ? "image/jpeg,image/png,image/webp,.jpg,.jpeg,.png,.webp" : "image/jpeg,image/png,application/pdf,.jpg,.jpeg,.png,.pdf"} disabled={Boolean(ownerDocumentBusy)} onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; if (file) saveOwnerDocument(key, label, file); }} /></label>}
+                      {access.readOnly && <Link className="profile-owner-upload" to="/subscription-expired"><FiUpload /> Renew to upload</Link>}
+                      {document && !access.readOnly && <button type="button" className="profile-owner-remove" onClick={() => setConfirmRemoveOwnerDocument(key)} disabled={Boolean(ownerDocumentBusy)} aria-label={`Remove ${label}`}><FiTrash2 /> Remove</button>}
+                    </div>
+                    {confirmRemoveOwnerDocument === key && <div className="profile-owner-remove-confirm"><span>Remove {label.toLowerCase()}?</span><button type="button" onClick={() => deleteOwnerDocument(key, label)} disabled={Boolean(ownerDocumentBusy)}>Yes, remove</button><button type="button" onClick={() => setConfirmRemoveOwnerDocument("")} disabled={Boolean(ownerDocumentBusy)}>Cancel</button></div>}
+                  </article>;
+                })}
+              </div>
+              <p className="profile-owner-document-help">Logo, owner photo, and payment QR: JPG, PNG, or WEBP. Identity cards: JPG, PNG, or PDF. Maximum 5 MB per file.</p>
+            </div>
+            <footer className="profile-units-dialog-footer"><button type="button" className="profile-outline-button" onClick={() => setShowDocumentsModal(false)}>Close</button></footer>
+          </section>
+        </div>,
+        document.body
+      )}
       {showUnitsModal && createPortal(
         <div className="profile-units-overlay" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowUnitsModal(false); }}>
           <section className="profile-units-dialog" role="dialog" aria-modal="true" aria-labelledby="profile-units-title">
@@ -547,9 +577,11 @@ export default function ProfileSettings() {
               <h3 className="profile-units-added-title">Units added</h3>
               <div className="profile-unit-grid">{unitFields.map(({ key, label }) => <div key={key}><strong>{number(registeredUnits[key])}</strong><span>{label}</span></div>)}</div>
               {flexible && <>
-                <p className="profile-card-copy">Select the property types you use. Types with existing units or allocated capacity must remain selected.</p>
-                <PropertyTypePicker initialTypes={selectedTypes} initialCanteenEnabled={canteenEnabled} showCanteenOption={false} onTypesChange={setPropertyTypesDraft} onSaved={async () => { await load(); setNotice("Property types saved."); }} />
-                {isTrial && <div className="profile-upgrade-form"><h3>Set unit counts</h3><p className="profile-card-copy">Set the capacity for each selected property type, including types you just selected above. Existing units must remain covered. Trial usage remains limited to 10 active units total.</p><div className="profile-upgrade-inputs">{unitFields.filter(({ key }) => propertyTypesDraft.includes(({ beds: "bed", rooms: "room", shops: "shop" })[key])).map(({ key, label }) => <label key={key}>{label}<input inputMode="numeric" value={unitCounts[key]} onChange={(event) => setUnitCounts((current) => ({ ...current, [key]: event.target.value.replace(/\D/g, "") }))} /></label>)}</div><button type="button" className="profile-primary-button" onClick={saveCounts} disabled={savingCounts}>{savingCounts ? "Saving..." : "Save property types & counts"}</button></div>}
+                <section className="profile-unit-setup-section">
+                  <div className="profile-unit-setup-heading"><FiLayers /><div><h3>Select property types</h3><p>Choose one or more property types you want to manage.</p></div></div>
+                  <PropertyTypePicker initialTypes={selectedTypes} initialCanteenEnabled={canteenEnabled} showCanteenOption={false} onTypesChange={setPropertyTypesDraft} onSaved={async () => { await load(); setNotice("Property types saved."); }} />
+                </section>
+                {isTrial && <div className="profile-upgrade-form profile-unit-counts-form"><h3>Set unit counts</h3><p className="profile-card-copy">Set capacity for each selected type. Existing units must remain covered. Trial usage is limited to 10 active units total.</p><div className="profile-upgrade-inputs">{unitFields.filter(({ key }) => propertyTypesDraft.includes(({ beds: "bed", rooms: "room", shops: "shop" })[key])).map(({ key, label }) => <label key={key}>{label}<input inputMode="numeric" value={unitCounts[key]} onChange={(event) => setUnitCounts((current) => ({ ...current, [key]: event.target.value.replace(/\D/g, "") }))} /></label>)}</div><button type="button" className="profile-primary-button" onClick={saveCounts} disabled={savingCounts}>{savingCounts ? "Saving..." : "Save property types & counts"}</button></div>}
               </>}
               {!flexible && <button type="button" className="profile-primary-button" onClick={() => { setShowUnitsModal(false); openWalletUpgrade(); }}>Add units</button>}
             </div>

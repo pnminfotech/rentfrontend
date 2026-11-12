@@ -51,6 +51,33 @@
   background: #fff;
 }
 
+.tenant-intake-relative-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.tenant-intake-relative-grid fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 14px;
+  border: 1px solid #d7dfeb;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.tenant-intake-relative-grid legend {
+  float: none;
+  width: auto;
+  margin-bottom: 8px;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+@media (max-width: 640px) {
+  .tenant-intake-relative-grid { grid-template-columns: 1fr; }
+}
+
 .tenant-intake-saved-document {
   display: flex;
   align-items: center;

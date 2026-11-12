@@ -1,19 +1,18 @@
 // src/tenant/pages/TenantHome.js
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   FaRupeeSign,
   FaCheckCircle,
   FaExclamationTriangle,
-  FaArrowRight,
   FaReceipt,
-  FaFileUpload,
-  FaUserCheck,
   FaFileAlt,
+  FaBell,
+  FaCalendarAlt,
+  FaBullhorn,
 } from "react-icons/fa";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 // import axios from "axios";
 // import { API, authHeader } from "../tenantApi";
-import { tenantHttp } from "../tenantApi";
 /* ----------------------------- Utils ---------------------------------- */
 const toNumber = (v) => {
   const n = Number(v);
@@ -99,8 +98,8 @@ const getFirstBillYM = (tenant) => {
 };
 
 /* ---------- Due calc EXACTLY like admin/NewComponant ------------------- */
-const calcDueAdminAligned = ({ joiningDate, rents }) => {
-  if (!joiningDate) return 0;
+const getDueMonthsAdminAligned = ({ joiningDate, rents }) => {
+  if (!joiningDate) return [];
 
   const now = new Date();
   const currentYear = now.getFullYear();
@@ -128,18 +127,25 @@ const calcDueAdminAligned = ({ joiningDate, rents }) => {
     .sort((a, b) => new Date(b.date) - new Date(a.date))[0];
 
   const rentAmount = lastPaid ? toNumber(lastPaid.rentAmount) : 0;
-  if (rentAmount <= 0) return 0;
+  if (rentAmount <= 0) return [];
 
-  let dueCount = 0;
+  const dueMonths = [];
   const cursor = new Date(startDate);
 
   while (cursor <= now && cursor.getFullYear() === currentYear) {
     const key = `${cursor.getMonth()}-${cursor.getFullYear()}`;
-    if (!paidMonths.has(key)) dueCount++;
+    if (!paidMonths.has(key)) {
+      dueMonths.push({
+        month: cursor.getMonth() + 1,
+        year: cursor.getFullYear(),
+        amount: rentAmount,
+        label: `${monthName(cursor.getMonth())} ${cursor.getFullYear()}`,
+      });
+    }
     cursor.setMonth(cursor.getMonth() + 1);
   }
 
-  return rentAmount * dueCount;
+  return dueMonths;
 };
 
 /* --------------------------- Component -------------------------------- */
@@ -149,23 +155,26 @@ export default function TenantHome({
   ann = [],
   refresh = () => {},
 }) {
-  const navigate = useNavigate();
+  const [refreshing, setRefreshing] = useState(false);
+  const [showDueMonths, setShowDueMonths] = useState(false);
+  const announcements = Array.isArray(ann) ? ann.slice(0, 3) : [];
 
   const colors = {
-    primary: "#2563eb",
+    primary: "#1e3a8a",
     success: "#16a34a",
     danger: "#dc2626",
     warning: "#f59e0b",
-    lightBg: "#f9fafb",
-    textMuted: "#6b7280",
+    lightBg: "#f4f7fb",
+    textMuted: "#718096",
   };
 
   const styles = {
     card: {
       background: "#ffffff",
-      borderRadius: 16,
-      boxShadow: "0 6px 18px rgba(0,0,0,0.05)",
-      padding: 18,
+      border: "1px solid #e5eaf2",
+      borderRadius: 14,
+      boxShadow: "0 5px 20px rgba(16,42,99,.045)",
+      padding: 20,
       marginBottom: 16,
       transition: "all 0.2s ease-in-out",
     },
@@ -176,11 +185,12 @@ export default function TenantHome({
     },
     ghostBtn: {
       padding: "8px 12px",
-      border: `1px solid ${colors.textMuted}33`,
-      borderRadius: 10,
+      border: `1px solid ${colors.primary}30`,
+      borderRadius: 9,
       background: "#fff",
       cursor: "pointer",
-      color: colors.textMuted,
+      color: colors.primary,
+      fontWeight: 700,
     },
     subtle: { color: colors.textMuted },
     pill: {
@@ -199,12 +209,12 @@ export default function TenantHome({
       alignItems: "center",
       gap: 8,
       padding: "12px 14px",
-      border: `1px solid ${colors.textMuted}22`,
-      borderRadius: 12,
+      border: `1px solid ${colors.primary}20`,
+      borderRadius: 10,
       cursor: "pointer",
-      background: "#f1f5f9",
-      fontWeight: 500,
-      color: "#1e293b",
+      background: "#fff",
+      fontWeight: 600,
+      color: colors.primary,
       transition: "all 0.2s ease-in-out",
     },
     ctaHover: { background: "#e2e8f0" },
@@ -232,32 +242,9 @@ export default function TenantHome({
       })[0];
   }, [rentList]);
 
-  // Fetch rooms only when the tenant record itself does not already carry enough rent info.
-  const [rooms, setRooms] = useState(null);
-  useEffect(() => {
-    if (
-      toNum(me?.baseRent) ||
-      toNum(me?.hostel?.baseRent) ||
-      toNum(lastPaidRec?.rentAmount)
-    ) {
-      return;
-    }
-
-    tenantHttp
-      .get(`/rooms`)
-      .then((res) => setRooms(res.data || []))
-      .catch(() => setRooms(null));
-  }, [me?.baseRent, me?.hostel?.baseRent, lastPaidRec?.rentAmount]);
-
   // ===== Base rent priority (match TenantPayments)
   const baseRent = useMemo(() => {
-    if (rooms && me?.roomNo != null && me?.bedNo != null) {
-      const room = (rooms || []).find((r) => String(r.roomNo) === String(me.roomNo));
-      const bed = room?.beds?.find((b) => String(b.bedNo) === String(me.bedNo));
-      const fromRooms =
-        toNum(bed?.price) || toNum(bed?.baseRent) || toNum(bed?.monthlyRent);
-      if (fromRooms) return fromRooms;
-    }
+    if (toNum(rents?.baseRent)) return toNum(rents.baseRent);
     if (toNum(me?.baseRent)) return toNum(me.baseRent);
     if (toNum(me?.hostel?.baseRent)) return toNum(me.hostel.baseRent);
     if (toNum(lastPaidRec?.rentAmount)) return toNum(lastPaidRec.rentAmount);
@@ -271,16 +258,39 @@ export default function TenantHome({
         )
         .find((x) => x > 0) || 0;
     return fromRents;
-  }, [rooms, me?.roomNo, me?.bedNo, me?.baseRent, me?.hostel?.baseRent, lastPaidRec, rentList]);
+  }, [rents?.baseRent, me?.baseRent, me?.hostel?.baseRent, lastPaidRec, rentList]);
 
   // ===== IMPORTANT: Use the EXACT same due calc as admin =====
-  const computedDue = useMemo(
-    () =>
-      calcDueAdminAligned({
+  const dueMonths = useMemo(
+    () => {
+      if (Array.isArray(rents?.dueMonths)) {
+        return rents.dueMonths
+          .map((entry) => {
+            const parsed = parseMonthKey(entry?.month);
+            const amount = toNum(entry?.outstanding);
+            if (!parsed || amount <= 0) return null;
+            return {
+              month: parsed.m + 1,
+              year: parsed.y,
+              amount,
+              expected: toNum(entry?.expected),
+              paid: toNum(entry?.paid),
+              label: `${monthName(parsed.m)} ${parsed.y}`,
+            };
+          })
+          .filter(Boolean);
+      }
+
+      return getDueMonthsAdminAligned({
         joiningDate: me?.joiningDate,
         rents: rentList,
-      }),
-    [me?.joiningDate, rentList]
+      });
+    },
+    [rents?.dueMonths, me?.joiningDate, rentList]
+  );
+  const computedDue = useMemo(
+    () => dueMonths.reduce((sum, month) => sum + month.amount, 0),
+    [dueMonths]
   );
 
   const now = new Date();
@@ -335,38 +345,54 @@ export default function TenantHome({
     return `${monthName(next.m)} ${next.y}`;
   }, [currentMonthState.nextDueYM]);
 
-  const lastFive = useMemo(() => {
-    const withSortKey = rentList.map((r) => {
-      if (r?.date) return { r, key: new Date(r.date).getTime() || 0 };
-      const ym = getYMFromRecord(r);
-      if (ym) return { r, key: new Date(ym.y, ym.m, 1).getTime() };
-      return { r, key: 0 };
-    });
-    return withSortKey
-      .sort((a, b) => b.key - a.key)
-      .slice(0, 5)
-      .map(({ r }) => r);
-  }, [rentList]);
+  const latestPayments = useMemo(() => rentList.flatMap((rent) => {
+    const payments = Array.isArray(rent?.payments) && rent.payments.length
+      ? rent.payments
+      : [rent];
+    const rentMonth = getYMFromRecord(rent);
+
+    return payments
+      .map((payment, index) => {
+        const amount = toNumber(payment?.amount ?? payment?.rentAmount ?? rent?.rentAmount);
+        const date = payment?.date || rent?.date;
+        const paymentMonth = rentMonth || getYMFromRecord({ date });
+        if (amount <= 0 || !paymentMonth) return null;
+
+        return {
+          key: payment?._id || `${rent?._id || rent?.month || "rent"}-${index}`,
+          year: paymentMonth.y,
+          month: paymentMonth.m,
+          amount,
+          date,
+          dateSort: date ? new Date(date).getTime() || 0 : 0,
+        };
+      })
+      .filter(Boolean);
+  }).sort((a, b) => (b.year - a.year) || (b.month - a.month) || (b.dateSort - a.dateSort)), [rentList]);
 
   // Hard refresh handler (works even if `refresh` prop is a no-op)
-  const handleRefresh = () => {
-    if (typeof refresh === "function") {
-      try { refresh(); } catch {}
+  const handleRefresh = async () => {
+    if (typeof refresh !== "function" || refreshing) return;
+    setRefreshing(true);
+    try {
+      await refresh();
+    } catch (error) {
+      console.error("Unable to refresh tenant dashboard:", error?.message || error);
+    } finally {
+      setRefreshing(false);
     }
-    // Force a real page reload using React Router v6
-    navigate(0);
-    // (Alternatively: window.location.reload();)
   };
 
   /* ----------------------------- UI ----------------------------------- */
   return (
-    <>
+    <div className="tenant-home-overview">
       {/* Header / Welcome */}
       <div
+        className="tenant-home-hero"
         style={{
           ...styles.card,
-          background: "linear-gradient(135deg,#e0f2fe,#f8fafc)",
-          border: "1px solid #e5e7eb",
+          background: "linear-gradient(135deg,#fff9e6,#f8faff 72%)",
+          border: "1px solid #e4eaf3",
         }}
       >
         <div
@@ -378,15 +404,10 @@ export default function TenantHome({
         >
           <div>
             <h5 style={{ margin: 0, color: "#1e293b" }}>
-              Welcome, {me?.name || "Tenant"}
+              Hello, {me?.name || "Tenant"}
             </h5>
             <div style={styles.subtle}>
-              Room {roomNo} / Bed {bedNo}
-              {me?.status && (
-                <span style={styles.pill}>
-                  {String(me.status).toUpperCase()}
-                </span>
-              )}
+              {me?.propertyType === "shop" ? "Shop" : "Room"} {roomNo}{me?.propertyType === "bed" && bedNo !== "—" ? ` / Bed ${bedNo}` : ""}
             </div>
           </div>
           <div style={{ fontSize: 12, color: colors.textMuted }}>
@@ -396,130 +417,75 @@ export default function TenantHome({
                 borderColor: colors.primary,
                 color: colors.primary,
               }}
+              disabled={refreshing}
               onClick={handleRefresh}
             >
-              Refresh
+              {refreshing ? "Refreshing…" : "Refresh"}
             </button>
           </div>
         </div>
 
-        {/* Quick Actions */}
-        <div
-          style={{
-            marginTop: 16,
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))",
-            gap: 10,
-          }}
-        >
-          {[
-            { icon: <FaReceipt />, label: "View Payments", path: "/tenant/payments" },
-            { icon: <FaRupeeSign />, label: "Rent Details", path: "/tenant/rent" },
-            { icon: <FaFileUpload />, label: "Upload Docs", path: "/tenant/documents" },
-            // { icon: <FaUserCheck />, label: "eKYC", path: "/tenant/ekyc" },
-            { icon: <FaFileAlt />, label: "Leave Request", path: "/tenant/leave" },
-          ].map((a, i) => (
-            <div
-              key={i}
-              style={styles.cta}
-              onClick={() => navigate(a.path)}
-              onMouseEnter={(e) => (e.currentTarget.style.background = "#e2e8f0")}
-              onMouseLeave={(e) => (e.currentTarget.style.background = "#f1f5f9")}
-            >
-              {a.icon} {a.label}
-              <FaArrowRight style={{ marginLeft: "auto", opacity: 0.6 }} />
-            </div>
-          ))}
-        </div>
       </div>
 
-      {/* KPI Row */}
-      <div style={styles.row}>
-        {/* Due */}
-        <div
-          style={{
-            ...styles.card,
-            borderLeft: `6px solid ${
-              computedDue > 0 ? colors.danger : colors.success
-            }`,
-          }}
+      <section className={`tenant-home-due-summary${computedDue > 0 ? " has-due" : " is-clear"}`}>
+        <div className="tenant-home-due-copy">
+          <span className="tenant-home-due-icon">{computedDue > 0 ? <FaExclamationTriangle /> : <FaCheckCircle />}</span>
+          <div>
+            <strong>{computedDue > 0 ? "Rent due" : "No rent due"}</strong>
+            <b><Money v={computedDue} /></b>
+            <small>{computedDue > 0 ? `${dueMonths.length} unpaid month${dueMonths.length === 1 ? "" : "s"}` : "Your rent is up to date."}</small>
+          </div>
+        </div>
+        <Link
+          className="tenant-home-due-action"
+          to="/tenant/payments"
+          state={dueMonths[0] ? { dueMonth: dueMonths[0].month, dueYear: dueMonths[0].year, dueAmount: dueMonths[0].amount, totalDue: computedDue, baseRent } : undefined}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            {computedDue > 0 ? (
-              <FaExclamationTriangle color={colors.danger} />
-            ) : (
-              <FaCheckCircle color={colors.success} />
-            )}
-            <div style={{ fontWeight: 600 }}>Outstanding Due</div>
-          </div>
-          <div
-            style={{
-              ...styles.kpiNumber,
-              color: computedDue > 0 ? colors.danger : colors.success,
-            }}
-          >
-            <Money v={computedDue} />
-          </div>
-          <div style={styles.kpiLabel}>Next due: {nextDueLabel}</div>
-          <div className="mt-2">
-            <Link
-              to="/tenant/payments"
-              state={{ totalDue: computedDue, baseRent }}
-              className="btn btn-sm btn-primary"
-            >
-              Pay / Report Payment
-            </Link>
+          {computedDue > 0 ? "Pay rent" : "View payments"}
+        </Link>
+      </section>
+
+      {/* Useful rent summary */}
+      <div className="tenant-home-kpis" style={styles.row}>
+        {/* Base Rent */}
+        <div className="tenant-home-kpi tenant-home-kpi-rent" style={styles.card}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 600 }}><FaRupeeSign color="#3975bb" />Monthly rent</div>
+          <div style={styles.kpiNumber}>
+            <Money v={baseRent} />
           </div>
         </div>
 
         {/* Deposit */}
-        <div style={styles.card}>
-          <div style={{ fontWeight: 600 }}>Security Deposit</div>
+        <div className="tenant-home-kpi tenant-home-kpi-deposit" style={styles.card}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 600 }}><FaFileAlt color="#6d5ac3" />Deposit paid</div>
           <div style={styles.kpiNumber}>
             <Money v={deposit} />
           </div>
-          <div style={styles.kpiLabel}>As per records</div>
-        </div>
-
-        {/* Base Rent */}
-        <div style={styles.card}>
-          <div style={{ fontWeight: 600 }}>Base Rent</div>
-          <div style={styles.kpiNumber}>
-            <Money v={baseRent} />
-          </div>
-          <div style={styles.kpiLabel}>Monthly</div>
         </div>
 
         {/* Current Month */}
-        <div style={styles.card}>
-          <div style={{ fontWeight: 600 }}>Current Month</div>
+        <div className="tenant-home-kpi tenant-home-kpi-month" style={styles.card}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 600 }}><FaCalendarAlt color="#bd870e" />This month</div>
           <div
             style={{
               ...styles.kpiNumber,
               color: currentMonthState.color,
             }}
           >
-            {currentMonthState.label}
-          </div>
-          <div style={styles.kpiLabel}>
-            {currentMonthState.label === "Not due yet"
-              ? "Billing starts from the first payable month after joining."
-              : currentMonthPaid
-                ? "Thanks for paying on time!"
-                : "Please clear dues soon"}
+            {currentMonthState.label === "Not due yet" ? "Not due" : currentMonthState.label}
           </div>
         </div>
 
         {/* Last Payment */}
-        <div style={styles.card}>
-          <div style={{ fontWeight: 600 }}>Last Payment</div>
+        <div className="tenant-home-kpi tenant-home-kpi-payment" style={styles.card}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 600 }}><FaCheckCircle color="#299565" />Last payment</div>
           <div style={styles.kpiNumber}>
             {lastPaidRec ? <Money v={toNumber(lastPaidRec.rentAmount)} /> : "—"}
           </div>
           <div style={styles.kpiLabel}>
             {lastPaidRec?.date
-              ? `on ${fmtDate(lastPaidRec.date)}`
-              : "No payments recorded"}
+              ? fmtDate(lastPaidRec.date)
+              : "No payments yet"}
           </div>
         </div>
 
@@ -548,8 +514,78 @@ export default function TenantHome({
         */}
       </div>
 
+      {showDueMonths && (
+        <div
+          className="tenant-dues-backdrop"
+          role="presentation"
+          onClick={() => setShowDueMonths(false)}
+        >
+          <section
+            className="tenant-dues-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="tenant-due-months-title"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="tenant-dues-header">
+              <div>
+                <h5 id="tenant-due-months-title">Outstanding dues</h5>
+                <p>Month-wise rent balance</p>
+              </div>
+              <button
+                type="button"
+                className="tenant-dues-close"
+                aria-label="Close dues"
+                onClick={() => setShowDueMonths(false)}
+              >
+                ×
+              </button>
+            </div>
+            <div className="tenant-dues-body">
+              <div className="table-responsive tenant-dues-table-wrap">
+                <table className="table table-sm align-middle tenant-dues-table">
+                  <thead>
+                    <tr><th>Month</th><th className="text-end">Due</th><th className="text-end">Action</th></tr>
+                  </thead>
+                  <tbody>
+                    {dueMonths.map((month) => (
+                      <tr key={`${month.year}-${month.month}`}>
+                        <td>{month.label}</td>
+                        <td className="text-end fw-semibold">{formatINR(month.amount)}</td>
+                        <td className="text-end">
+                          <Link
+                            to="/tenant/payments"
+                            state={{
+                              totalDue: computedDue,
+                              baseRent,
+                              dueMonth: month.month,
+                              dueYear: month.year,
+                              dueAmount: month.amount,
+                            }}
+                            className="btn btn-sm btn-primary tenant-dues-pay"
+                          >
+                            Pay / Report
+                          </Link>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <th>Total outstanding</th>
+                      <th className="text-end">{formatINR(computedDue)}</th>
+                      <th />
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            </div>
+          </section>
+        </div>
+      )}
+
       {/* Recent Payments */}
-      <div style={styles.card}>
+      <div className="tenant-home-panel" style={styles.card}>
         <div
           style={{
             display: "flex",
@@ -557,30 +593,36 @@ export default function TenantHome({
             alignItems: "baseline",
           }}
         >
-          <h5 style={{ margin: 0 }}>Recent Payments</h5>
-          <Link to="/tenant/payments" className="btn btn-sm btn-outline-secondary">
+          <h5 className="tenant-home-section-title" style={{ margin: 0 }}>
+            <span className="tenant-home-section-icon"><FaReceipt /></span>
+            Latest payments
+          </h5>
+          <Link to="/tenant/payments" className="btn btn-sm btn-outline-primary">
             View all
           </Link>
         </div>
 
-        {lastFive.length ? (
-          <div className="table-responsive mt-2">
-            <table className="table table-sm align-middle mb-0">
+        {latestPayments.length ? (
+          <div className="table-responsive mt-2 tenant-home-payments-wrap">
+            <table className="table table-sm align-middle mb-0 tenant-home-payments-table">
               <thead>
                 <tr>
-                  <th>Date</th>
+                  <th>Month</th>
                   <th>Amount</th>
-                  <th>Notes</th>
+                  <th>Date</th>
                 </tr>
               </thead>
               <tbody>
-                {lastFive.map((r, i) => (
-                  <tr key={r?._id || r?.id || i}>
-                    <td>{fmtDate(r?.date)}</td>
+                {latestPayments.map((payment) => (
+                  <tr key={payment.key}>
+                    <td data-label="Month"><span className="tenant-payment-mobile-label">Month</span>{monthName(payment.month)} {payment.year}</td>
                     <td>
-                      <Money v={toNumber(r?.rentAmount)} />
+                      <span className="tenant-payment-mobile-label">Amount</span>
+                      <Money v={payment.amount} />
                     </td>
-                    <td className="text-muted small">{r?.note || "-"}</td>
+                    <td data-label="Date">
+                      <span className="tenant-payment-mobile-label">Date</span>{fmtDate(payment.date) || "—"}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -593,9 +635,38 @@ export default function TenantHome({
         )}
       </div>
 
-      {/* Announcements (left commented out as in your version)
-      <div style={styles.card}>...</div>
+      {/* Announcements are temporarily hidden; restore this section when the feature is ready.
+      <section className="tenant-home-panel" style={styles.card}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+          <div>
+            <h5 className="tenant-home-section-title" style={{ margin: 0 }}>
+              <span className="tenant-home-section-icon"><FaBullhorn /></span>
+              Property announcements
+            </h5>
+            <div style={{ ...styles.subtle, fontSize: 12, marginTop: 4 }}>Updates from your property administrator</div>
+          </div>
+          <Link to="/tenant/announcements" className="btn btn-sm btn-outline-primary">View all</Link>
+        </div>
+        {announcements.length ? (
+          <div className="tenant-home-announcements">
+            {announcements.map((item, index) => {
+              const dateValue = item?.createdAt || item?.date || item?.publishedAt;
+              const date = dateValue ? new Date(dateValue) : null;
+              return (
+                <article key={item?._id || item?.id || index}>
+                  <span className="tenant-home-announcement-icon"><FaBell /></span>
+                  <div>
+                    <strong>{item?.title || item?.subject || "Property update"}</strong>
+                    <p>{item?.message || item?.body || item?.content || "No details provided."}</p>
+                  </div>
+                  {date && !Number.isNaN(date.getTime()) && <time>{date.toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</time>}
+                </article>
+              );
+            })}
+          </div>
+        ) : <p className="tenant-home-announcements-empty">No new notices at the moment.</p>}
+      </section>
       */}
-    </>
+    </div>
   );
 }

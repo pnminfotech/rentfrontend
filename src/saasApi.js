@@ -184,6 +184,11 @@ export async function updateOrganizationStatus(organizationId, status, securityP
   return data;
 }
 
+export async function updateOrganizationTrialPeriod(organizationId, endDate, securityPin) {
+  const { data } = await api.patch(`/saas/admin/organizations/${organizationId}/trial-period`, { endDate, securityPin });
+  return data;
+}
+
 export async function getOrganizationSupportUnits(organizationId) {
   const { data } = await api.get(`/saas/admin/organizations/${organizationId}/vacant-units`);
   return data;

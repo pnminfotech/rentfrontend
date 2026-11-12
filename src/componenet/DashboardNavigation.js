@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+﻿import React, { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { clearAuthSession, getAuthToken, getAuthUser } from "../authStorage";
 import { useDashboardMenuItems } from "./dashboardMenuItems";
@@ -11,7 +11,7 @@ export default function DashboardNavigation() {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [openSubmenu, setOpenSubmenu] = useState(null);
-  const dashboardMenuItems = useDashboardMenuItems();
+  const dashboardMenuItems = useDashboardMenuItems(!location.pathname.startsWith("/tenant/"));
 
   useEffect(() => {
     setOpen(false);
@@ -39,26 +39,26 @@ export default function DashboardNavigation() {
     <>
       <header className="dashboard-nav-bar">
         <button type="button" className="dashboard-nav-toggle" aria-label="Open navigation menu" aria-expanded={open} aria-controls="dashboard-navigation" onClick={() => setOpen(true)}>
-          <span aria-hidden="true">☰</span><span>Menu</span>
+          <span aria-hidden="true">{"\u2630"}</span><span>Menu</span>
         </button>
       </header>
       {open && <div className="dashboard-nav-backdrop" onClick={() => setOpen(false)} />}
       <nav id="dashboard-navigation" className={`dashboard-nav-drawer${open ? " is-open" : ""}`} aria-label="Main dashboard navigation" aria-hidden={!open}>
-        <div className="dashboard-nav-header"><strong>Hostel Manager</strong><button type="button" aria-label="Close navigation menu" onClick={() => setOpen(false)}>×</button></div>
+        <div className="dashboard-nav-header"><strong>Hostel Manager</strong><button type="button" aria-label="Close navigation menu" onClick={() => setOpen(false)}>{"\u00d7"}</button></div>
         <ul>
           {dashboardMenuItems.map((item) => (
             <li key={item.label}>
               {item.children ? (
                 <>
                   <button type="button" className="dashboard-nav-item" aria-expanded={openSubmenu === item.label} onClick={() => setOpenSubmenu((value) => value === item.label ? null : item.label)}>
-                    {item.icon}<span>{item.label}</span><span className="dashboard-nav-chevron">{openSubmenu === item.label ? "⌃" : "⌄"}</span>
+                    {item.icon}<span>{item.label}</span><span className="dashboard-nav-chevron">{"\u2304"}</span>
                   </button>
                   {openSubmenu === item.label && <ul className="dashboard-nav-submenu">{item.children.map((child) => <li key={child.label}><button type="button" onClick={() => goTo(child)}>{child.label}</button></li>)}</ul>}
                 </>
               ) : <button type="button" className="dashboard-nav-item" onClick={() => goTo(item)}>{item.icon}<span>{item.label}</span></button>}
             </li>
           ))}
-          <li><button type="button" className="dashboard-nav-item" onClick={() => { clearAuthSession(); setOpen(false); navigate("/"); }}><span aria-hidden="true">↪</span><span>Logout</span></button></li>
+          <li><button type="button" className="dashboard-nav-item" onClick={() => { clearAuthSession(); setOpen(false); navigate("/"); }}><span aria-hidden="true">{"\u21e5"}</span><span>Logout</span></button></li>
         </ul>
       </nav>
     </>

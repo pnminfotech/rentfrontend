@@ -12,9 +12,9 @@ export const dashboardMenuItems = [
   {
     label: "Rent Tracker", icon: <MdOutlineBedroomParent />,
     children: [
-      { label: "Hostel Tracker", path: "/tracker/bed", state: { tab: "rent", trackerType: "bed" } },
-      { label: "Residential Rooms Tracker", path: "/tracker/room", state: { tab: "rent", trackerType: "room" } },
-      { label: "Commercial Shop Tracker", path: "/tracker/shop", state: { tab: "rent", trackerType: "shop" } },
+      { label: "Hostel", path: "/tracker/bed", state: { tab: "rent", trackerType: "bed" } },
+      { label: "Residential Rooms", path: "/tracker/room", state: { tab: "rent", trackerType: "room" } },
+      { label: "Commercial Shop", path: "/tracker/shop", state: { tab: "rent", trackerType: "shop" } },
     ],
   },
   {
@@ -33,32 +33,31 @@ export const dashboardMenuItems = [
       { label: "Commercial Shop", path: "/tracker/shop", state: { tab: "expenses-shop", trackerType: "shop" } },
     ],
   },
-  {
-    label: "Canteen", icon: <FaUtensils />,
-    children: [
-      { label: "Meal settings", path: "/canteen-settings" },
-      { label: "Meal attendance", path: "/canteen-attendance" },
-    ],
-  },
+  { label: "Canteen", icon: <FaUtensils />, path: "/canteen-settings" },
   { label: "Hostel rules", icon: <MdOutlineReceiptLong />, path: "/hostel-rules" },
   { label: "Staff", icon: <MdOutlineReceiptLong />, path: "/tracker/bed", state: { tab: "staff", trackerType: "bed" } },
   { label: "Profile", icon: <FiUser />, path: "/profile" },
 ];
 
-export function useDashboardMenuItems() {
+export function useDashboardMenuItems(enabled = true) {
   const [unitAccess, setUnitAccess] = useState(null);
 
   useEffect(() => {
+    if (!enabled) {
+      setUnitAccess(null);
+      return undefined;
+    }
     let active = true;
     getAppBootstrap()
       .then((bootstrap) => {
         if (active) setUnitAccess(bootstrap);
       })
       .catch(() => {
+        // Do not offer property types when account access could not load.
         if (active) setUnitAccess({});
       });
     return () => { active = false; };
-  }, []);
+  }, [enabled]);
 
   return useMemo(() => {
     const enabledTypes = new Set(allowedUnitTypes(unitAccess || {}).map((item) => item.value));
@@ -75,7 +74,6 @@ export function useDashboardMenuItems() {
       })
       .filter((item) => !Array.isArray(item.children) || item.children.length > 0)
       .filter((item) => {
-        if (item.label === "Canteen") return enabledTypes.has("bed") && Boolean(unitAccess?.organization?.features?.canteenEnabled);
         if (item.label === "Hostel rules") return enabledTypes.has("bed");
         if (item.label === "Staff") return enabledTypes.size > 0;
         return true;

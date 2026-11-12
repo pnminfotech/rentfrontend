@@ -33,6 +33,7 @@ import { canteenApi, meals as canteenMeals } from "../Pages/canteenShared";
 import { FaSearch } from "react-icons/fa";
 import { FaSignOutAlt, FaUndo, FaDownload } from "react-icons/fa";
 import FormDownload from "../componenet/Maintanace/FormDownload";
+import TenantPoliceVerificationForm from "../componenet/Maintanace/TenantPoliceVerificationForm";
 import TenantChatbot from "../componenet/TenantChatbot";
 import NotificationBell from "../componenet/NotificationBell";
 import RentSummaryCards from "./RentSummaryCards";
@@ -90,6 +91,33 @@ function CanteenTenantRates({ tenant, setTenant, settings }) {
       <small className="text-muted">Leave individual rates blank to use the common canteen settings.</small>
     </>}
   </div>;
+}
+
+function ResidentialRelativeFields({ tenant, setTenant, idPrefix }) {
+  const relations = ["Self", "Sister", "Brother", "Father", "Husband", "Mother"];
+  return <div className="col-12"><div className="row g-3">
+    {[1, 2].map((number) => {
+      const relationKey = `relative${number}Relation`;
+      const nameKey = `relative${number}Name`;
+      const phoneKey = `relative${number}Phone`;
+      const phone = String(tenant?.[phoneKey] || "");
+      const phoneError = phone && !/^\d{10}$/.test(phone) ? "Enter a valid 10-digit number." : "";
+      return <div className="col-12 col-md-6" key={`${idPrefix}-relative-${number}`}>
+        <div className="border rounded p-3 h-100">
+          <h6 className="mb-3">Relative {number}</h6>
+          <label className="form-label">Relation</label>
+          <select className="form-select mb-2" value={tenant?.[relationKey] || "Self"} onChange={(event) => setTenant((previous) => ({ ...previous, [relationKey]: event.target.value }))}>
+            {relations.map((relation) => <option key={relation} value={relation}>{relation}</option>)}
+          </select>
+          <label className="form-label">Name</label>
+          <input className="form-control mb-2" value={tenant?.[nameKey] || ""} onChange={(event) => setTenant((previous) => ({ ...previous, [nameKey]: event.target.value }))} placeholder="Name" />
+          <label className="form-label">Phone</label>
+          <input type="tel" inputMode="numeric" maxLength={10} className={`form-control${phoneError ? " is-invalid" : ""}`} value={phone} onChange={(event) => setTenant((previous) => ({ ...previous, [phoneKey]: event.target.value.replace(/\D/g, "").slice(0, 10) }))} placeholder="Phone" />
+          {phoneError && <div className="invalid-feedback d-block">{phoneError}</div>}
+        </div>
+      </div>;
+    })}
+  </div></div>;
 }
 
 function TrackerLocationFilters({
@@ -224,8 +252,8 @@ function buildApiUrl(base) {
 
   const fallbackOrigin =
     typeof window !== "undefined" && LOCAL_HOSTS.has(window.location.hostname)
-      ? "   https://rentmobile-api.pnminfotech.com/"
-      : " https://rentmobile-api.pnminfotech.com/";
+      ? " http://localhost:8000/"
+      : " ttps://rentmobile-api.pnminfotech.com/";
 
   return new URL("/api/", fallbackOrigin).toString();
 }
@@ -732,11 +760,15 @@ const [selfAadharFile, setSelfAadharFile] = useState([]);
 const [parentAadharFile, setParentAadharFile] = useState([]);
 const [photoFile, setPhotoFile] = useState([]);
 const [panCardFile, setPanCardFile] = useState([]);
+const [familyMemberDocFiles, setFamilyMemberDocFiles] = useState({});
+const [familyDocumentRows, setFamilyDocumentRows] = useState([]);
 // Edit Tenant: document uploads
 const [editSelfAadharFile, setEditSelfAadharFile] = useState([]);
 const [editParentAadharFile, setEditParentAadharFile] = useState([]);
 const [editPhotoFile, setEditPhotoFile] = useState([]);
 const [editPanCardFile, setEditPanCardFile] = useState([]);
+const [editFamilyMemberDocFiles, setEditFamilyMemberDocFiles] = useState({});
+const [editFamilyDocumentRows, setEditFamilyDocumentRows] = useState([]);
 const [editDocMsg, setEditDocMsg] = useState("");
 // For Staff & Other Expenses
   const [showExpensesModal, setShowExpensesModal] = useState(false);
@@ -939,6 +971,18 @@ const [editReceiptUrl, setEditReceiptUrl] = useState("");
     relative2Name: "",
     relative2Phone: "",
     familyMembers: "",
+    familyMale: "0",
+    familyFemale: "0",
+    familyChildren: "0",
+    otherFamilyMembers: [],
+    passportNo: "",
+    panCardNo: "",
+    aadhaarCardNo: "",
+    natureOfWork: "",
+    previousAddress: "",
+    officeName: "",
+    officeAddress: "",
+    officeMobileNo: "",
     floorNo: "",
     bedNo: "",
     shopName: "",
@@ -1054,13 +1098,16 @@ const [editReceiptUrl, setEditReceiptUrl] = useState("");
 
 const [showFormModal, setShowFormModal] = useState(false);
 const [formTenant, setFormTenant] = useState(null);
+const [formTenantType, setFormTenantType] = useState(trackerType);
 const [showLeavedHistoryView, setShowLeavedHistoryView] = useState(false);
 const [historyDocsTenant, setHistoryDocsTenant] = useState(null);
-const canOpenAdmissionForm = trackerType === "bed";
+const canOpenAdmissionForm = ["bed", "room", "shop"].includes(trackerType);
 
-const openAdmissionForm = (tenant) => {
+const openAdmissionForm = async (tenant) => {
   if (!canOpenAdmissionForm) return;
-  setFormTenant(tenant);
+  const fullTenant = await fetchFullTenantRecord(tenant);
+  setFormTenant(fullTenant || tenant);
+  setFormTenantType(trackerType);
   setShowFormModal(true);
 };
 
@@ -2707,6 +2754,7 @@ const refreshAllData = useCallback(async () => {
         roomNos: roomNosByType.bed,
         optionLabels: getScopedRoomOptionLabelsByType("bed", "Room"),
         roomTypeMap: getScopedRoomTypeMap("bed"),
+        categories: getScopedCategoriesByType("bed"),
         roomNosByType,
       };
     }
@@ -2758,7 +2806,7 @@ const refreshAllData = useCallback(async () => {
       roomTypeMap: getScopedRoomTypeMap(trackerType),
       roomNosByType,
     };
-  }, [activeTab, getScopedRoomNosByType, getScopedRoomOptionLabelsByType, getScopedRoomTypeMap, roomsData, trackerLabel, trackerType]);
+  }, [activeTab, getScopedCategoriesByType, getScopedRoomNosByType, getScopedRoomOptionLabelsByType, getScopedRoomTypeMap, roomsData, trackerLabel, trackerType]);
 
   useEffect(() => {
     const modalState = {
@@ -2963,12 +3011,13 @@ const [invError, setInvError] = useState("");
 
 const [form, setForm] = useState({}); // only if you really need setForm
 
-const handleApprovedFromBell = React.useCallback((payload) => {
+const handleApprovedFromBell = React.useCallback(async (payload) => {
    // payload = { tenantId, amount, year, month(1..12), paymentDate, paymentMode, ... }
    const { tenantId, amount, year, month, paymentDate, paymentMode } = payload || {};
    if (!tenantId || !Number.isFinite(year) || !Number.isFinite(month)) {
      // fallback: safer re-fetch if something is missing
-     refreshTenants();
+     await refreshTenants();
+     setRentSummaryRevision((value) => value + 1);
      return;
    }
    // Optimistic UI: update that tenant's month right away
@@ -2987,7 +3036,10 @@ const handleApprovedFromBell = React.useCallback((payload) => {
      )
    );
    // Optional safety: also re-fetch to stay perfectly in sync with server
-   refreshTenants();
+   await refreshTenants();
+   // Rent summaries are cached separately from tenant records, so invalidate
+   // them after an approval to update the table without a full page reload.
+   setRentSummaryRevision((value) => value + 1);
  }, [refreshTenants, upsertRentForMonth]);
 
   // Build the public tenant form URL (adjust the path if yours is different)
@@ -3019,22 +3071,22 @@ const handleApprovedFromBell = React.useCallback((payload) => {
     if (trackerType === "bed" && newTenant.relativeAddress) {
       p.set("relativeAddress", String(newTenant.relativeAddress));
     }
-    if (trackerType === "bed" && newTenant.relative1Relation) {
+    if (trackerType !== "shop" && newTenant.relative1Relation) {
       p.set("relative1Relation", String(newTenant.relative1Relation));
     }
-    if (trackerType === "bed" && newTenant.relative1Name) {
+    if (trackerType !== "shop" && newTenant.relative1Name) {
       p.set("relative1Name", String(newTenant.relative1Name));
     }
-    if (trackerType === "bed" && newTenant.relative1Phone) {
+    if (trackerType !== "shop" && newTenant.relative1Phone) {
       p.set("relative1Phone", String(newTenant.relative1Phone));
     }
-    if (trackerType === "bed" && newTenant.relative2Relation) {
+    if (trackerType !== "shop" && newTenant.relative2Relation) {
       p.set("relative2Relation", String(newTenant.relative2Relation));
     }
-    if (trackerType === "bed" && newTenant.relative2Name) {
+    if (trackerType !== "shop" && newTenant.relative2Name) {
       p.set("relative2Name", String(newTenant.relative2Name));
     }
-    if (trackerType === "bed" && newTenant.relative2Phone) {
+    if (trackerType !== "shop" && newTenant.relative2Phone) {
       p.set("relative2Phone", String(newTenant.relative2Phone));
     }
     if (trackerType === "room" && newTenant.familyMembers !== "") {
@@ -3108,6 +3160,8 @@ useEffect(() => {
 
 
 const handleShareAddTenantModal = React.useCallback(async () => {
+  const relativePhoneError = trackerType !== "shop" ? getRelativePhoneError(newTenant) : "";
+  if (relativePhoneError) { alert(relativePhoneError); return; }
   // basic validation
   if (
     !newTenant.roomNo ||
@@ -3163,16 +3217,30 @@ const handleShareAddTenantModal = React.useCallback(async () => {
         trackerType === "bed"
           ? newTenant.relativeAddress || newTenant.RelativeAddress || undefined
           : undefined,
-      relative1Relation: trackerType === "bed" ? newTenant.relative1Relation || undefined : undefined,
-      relative1Name: trackerType === "bed" ? newTenant.relative1Name || undefined : undefined,
-      relative1Phone: trackerType === "bed" ? newTenant.relative1Phone || undefined : undefined,
-      relative2Relation: trackerType === "bed" ? newTenant.relative2Relation || undefined : undefined,
-      relative2Name: trackerType === "bed" ? newTenant.relative2Name || undefined : undefined,
-      relative2Phone: trackerType === "bed" ? newTenant.relative2Phone || undefined : undefined,
+      relative1Relation: trackerType !== "shop" ? newTenant.relative1Relation || undefined : undefined,
+      relative1Name: trackerType !== "shop" ? newTenant.relative1Name || undefined : undefined,
+      relative1Phone: trackerType !== "shop" ? newTenant.relative1Phone || undefined : undefined,
+      relative2Relation: trackerType !== "shop" ? newTenant.relative2Relation || undefined : undefined,
+      relative2Name: trackerType !== "shop" ? newTenant.relative2Name || undefined : undefined,
+      relative2Phone: trackerType !== "shop" ? newTenant.relative2Phone || undefined : undefined,
       familyMembers:
         trackerType === "room" && String(newTenant.familyMembers || "").trim() !== ""
           ? Number(newTenant.familyMembers)
           : undefined,
+      familyMale: trackerType === "room" ? toNum(newTenant.familyMale) ?? 0 : undefined,
+      familyFemale: trackerType === "room" ? toNum(newTenant.familyFemale) ?? 0 : undefined,
+      familyChildren: trackerType === "room" ? toNum(newTenant.familyChildren) ?? 0 : undefined,
+      otherFamilyMembers: trackerType === "room"
+        ? (newTenant.otherFamilyMembers || []).slice(0, Math.max(0, (Number(newTenant.familyMembers) || 0) - 1))
+        : undefined,
+      passportNo: trackerType === "room" ? newTenant.passportNo || "" : undefined,
+      panCardNo: trackerType === "room" ? newTenant.panCardNo || "" : undefined,
+      aadhaarCardNo: trackerType === "room" ? newTenant.aadhaarCardNo || "" : undefined,
+      natureOfWork: trackerType === "room" ? newTenant.natureOfWork || "" : undefined,
+      previousAddress: trackerType === "room" ? newTenant.previousAddress || "" : undefined,
+      officeName: trackerType === "room" ? newTenant.officeName || "" : undefined,
+      officeAddress: trackerType === "room" ? newTenant.officeAddress || "" : undefined,
+      officeMobileNo: trackerType === "room" ? newTenant.officeMobileNo || "" : undefined,
       companyAddress: newTenant.companyAddress || undefined,
       shopName: newTenant.shopName || undefined,
       shopBusiness: newTenant.shopBusiness || undefined,
@@ -3861,7 +3929,32 @@ function getCycleRangeStr(tenant, cycleIndex) {
 
   // state at top of component
   const [docFiles, setDocFiles] = useState([]); // [{file: File, relation: "Self"}]
-  const [docMsg, setDocMsg] = useState("");
+const [docMsg, setDocMsg] = useState("");
+const [residentialIdErrors, setResidentialIdErrors] = useState({});
+const getResidentialIdErrors = (tenant) => {
+  const errors = {};
+  const aadhaar = String(tenant?.aadhaarCardNo || "").trim();
+  const pan = String(tenant?.panCardNo || "").trim().toUpperCase();
+  const passport = String(tenant?.passportNo || "").trim().toUpperCase();
+  if (aadhaar && !/^\d{12}$/.test(aadhaar)) errors.aadhaarCardNo = "Aadhaar number must be exactly 12 digits.";
+  if (pan && !/^[A-Z]{5}\d{4}[A-Z]$/.test(pan)) errors.panCardNo = "Enter a valid 10-character PAN (for example, ABCDE1234F).";
+  if (passport && !/^[A-Z]\d{7}$/.test(passport)) errors.passportNo = "Enter a valid 8-character passport number (one letter followed by 7 digits).";
+  return errors;
+};
+const getFamilyMemberPhoneError = (members = []) => {
+  const invalidIndex = (Array.isArray(members) ? members : []).findIndex((member) => {
+    const phone = String(member?.phone || "").trim();
+    return phone && !/^\d{10}$/.test(phone);
+  });
+  return invalidIndex >= 0 ? `Enter a valid 10-digit mobile number for Other Family Member ${invalidIndex + 1}.` : "";
+};
+const getRelativePhoneError = (tenant = {}) => {
+  const invalidNumber = [1, 2].find((number) => {
+    const phone = String(tenant[`relative${number}Phone`] || "").trim();
+    return phone && !/^\d{10}$/.test(phone);
+  });
+  return invalidNumber ? `Enter a valid 10-digit phone number for Relative ${invalidNumber}.` : "";
+};
 
   const ALLOWED_IMAGE_MIME_TYPES = new Set(["image/jpeg", "image/png"]);
   const ALLOWED_IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png"]);
@@ -3894,29 +3987,106 @@ function getCycleRangeStr(tenant, cycleIndex) {
     setter((current) => (Array.isArray(current) ? current : []).filter((_, itemIndex) => itemIndex !== index));
   };
 
-  const renderDocumentUploader = ({ id, label, files, setFiles, messageSetter, capture = false, hint = "JPG, JPEG, or PNG only." }) => (
-    <div className="border rounded p-3 h-100">
+  const renderDocumentUploader = ({ id, label, files, setFiles, messageSetter, capture = false, compact = false, hint = "JPG, JPEG, or PNG only." }) => (
+    <div className={`border rounded p-3 h-100${compact ? " family-doc-upload-picker" : ""}`}>
       <label className="form-label fw-semibold small d-block">{label}</label>
       <input
-        id={id}
+        id={`${id}-files`}
         type="file"
         className="d-none"
         accept=".jpg,.jpeg,.png,image/jpeg,image/png"
         multiple
-        capture={capture ? "user" : undefined}
         onChange={(event) => {
           handleStrictImageSelection(event.target.files, setFiles, messageSetter, label);
           event.target.value = "";
         }}
       />
-      <label htmlFor={id} className="btn btn-outline-primary btn-sm mb-2">+ Add document</label>
+      <input
+        id={`${id}-camera`}
+        type="file"
+        className="d-none"
+        accept=".jpg,.jpeg,.png,image/jpeg,image/png"
+        capture={capture ? "user" : "environment"}
+        onChange={(event) => {
+          handleStrictImageSelection(event.target.files, setFiles, messageSetter, label);
+          event.target.value = "";
+        }}
+      />
+      <div className="d-flex flex-wrap gap-2 mb-2">
+        <label htmlFor={`${id}-camera`} className="btn btn-outline-primary btn-sm mb-0">Take photo</label>
+        <label htmlFor={`${id}-files`} className="btn btn-outline-secondary btn-sm mb-0">Choose from files</label>
+      </div>
       <small className="text-muted d-block">{hint}</small>
-      {(files || []).map((file, index) => <div className="d-flex align-items-center justify-content-between gap-2 mt-2" key={`${file.name}-${file.lastModified}-${index}`}>
-        <small className="text-truncate">{file.name}</small>
-        <button type="button" className="btn btn-outline-danger btn-sm py-0" onClick={() => removeSelectedUpload(setFiles, index)}>Remove</button>
+      {(files || []).map((file, index) => <div className="family-doc-file-row d-flex align-items-center justify-content-between gap-2 mt-2" key={`${file.name}-${file.lastModified}-${index}`}>
+        <small className="family-doc-file-name text-truncate" title={file.name}>{file.name}</small>
+        <div className="family-doc-file-actions d-flex align-items-center gap-1">
+          <button type="button" className="btn btn-outline-primary btn-sm family-doc-icon-button" title={`View ${file.name}`} aria-label={`View ${file.name}`} onClick={() => {
+            const previewUrl = URL.createObjectURL(file);
+            const previewWindow = window.open(previewUrl, "_blank", "noopener,noreferrer");
+            if (!previewWindow) URL.revokeObjectURL(previewUrl);
+            else window.setTimeout(() => URL.revokeObjectURL(previewUrl), 60000);
+          }}>
+            <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+          <button type="button" className="btn btn-outline-danger btn-sm family-doc-icon-button" title={`Delete ${file.name}`} aria-label={`Delete ${file.name}`} onClick={() => removeSelectedUpload(setFiles, index)}>
+            <svg aria-hidden="true" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18M8 6V4h8v2m3 0-.8 14H5.8L5 6m4 4v6m6-6v6"/></svg>
+          </button>
+        </div>
       </div>)}
     </div>
   );
+
+  const setFamilyMemberDocumentFiles = (editing, key, files) => {
+    const setter = editing ? setEditFamilyMemberDocFiles : setFamilyMemberDocFiles;
+    setter((current) => ({
+      ...current,
+      [key]: typeof files === "function" ? files(current[key] || []) : files,
+    }));
+  };
+
+  const addFamilyDocumentRow = (editing = false) => {
+    const setter = editing ? setEditFamilyDocumentRows : setFamilyDocumentRows;
+    setter((rows) => [...rows, { id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, memberIndex: "tenant", kind: "aadhaar" }]);
+  };
+
+  const removeFamilyDocumentRow = (editing, id) => {
+    const rowsSetter = editing ? setEditFamilyDocumentRows : setFamilyDocumentRows;
+    const filesSetter = editing ? setEditFamilyMemberDocFiles : setFamilyMemberDocFiles;
+    rowsSetter((rows) => rows.filter((row) => row.id !== id));
+    filesSetter((files) => { const next = { ...files }; delete next[id]; return next; });
+  };
+
+  const renderFamilyDocumentSection = (editing = false) => {
+    const rows = editing ? editFamilyDocumentRows : familyDocumentRows;
+    const fileMap = editing ? editFamilyMemberDocFiles : familyMemberDocFiles;
+    const otherMemberCount = Math.max(0, Math.min(50, Number(editing ? editTenantData.familyMembers : newTenant.familyMembers) || 0) - 1);
+    const messageSetter = editing ? setEditDocMsg : setDocMsg;
+    return <div className="col-12 family-doc-upload-section"><div className="border rounded p-3">
+      <div className="fw-semibold mb-1">Family member documents</div>
+      <small className="text-muted d-block mb-3">Choose the member and document type for each upload.</small>
+      {rows.map((row) => <div className="border rounded p-3 mb-3 family-doc-upload-entry" key={row.id}><div className="row g-3 align-items-end family-doc-upload-row">
+        <div className="col-12 col-md-3 family-doc-person"><label className="form-label">Person</label><select className="form-select" value={row.memberIndex} onChange={(event) => {
+          const setter = editing ? setEditFamilyDocumentRows : setFamilyDocumentRows;
+          setter((current) => current.map((item) => item.id === row.id ? { ...item, memberIndex: event.target.value } : item));
+        }}><option value="tenant">Tenant</option>{Array.from({ length: otherMemberCount }, (_, index) => <option value={String(index)} key={index}>Family Member {index + 1}</option>)}</select></div>
+        <div className="col-12 col-md-3 family-doc-type"><label className="form-label">Document type</label><select className="form-select" value={row.kind} onChange={(event) => {
+          const setter = editing ? setEditFamilyDocumentRows : setFamilyDocumentRows;
+          setter((current) => current.map((item) => item.id === row.id ? { ...item, kind: event.target.value } : item));
+        }}><option value="aadhaar">Aadhaar Card</option><option value="governmentId">Other Government ID (PAN, etc.)</option><option value="photo">Photo</option></select></div>
+        <div className="col-12 col-md-5 family-doc-picker">{renderDocumentUploader({
+          id: `${editing ? "edit" : "add"}-family-${row.id}`,
+          label: `${row.memberIndex === "tenant" ? "Tenant" : `Family Member ${Number(row.memberIndex) + 1}`} ${row.kind === "aadhaar" ? "Aadhaar Card" : row.kind === "governmentId" ? "Other Government ID" : "Photo"}`,
+          files: fileMap[row.id] || [],
+          setFiles: (files) => setFamilyMemberDocumentFiles(editing, row.id, files),
+          messageSetter,
+          capture: row.kind === "photo",
+          compact: true,
+        })}</div>
+        <div className="col-12 col-md-1 family-doc-remove"><button type="button" className="btn btn-outline-danger btn-sm" onClick={() => removeFamilyDocumentRow(editing, row.id)}>Remove</button></div>
+      </div></div>)}
+      <button type="button" className="btn btn-outline-primary btn-sm" onClick={() => addFamilyDocumentRow(editing)}>+ Add document</button>
+    </div></div>;
+  };
 
   // onChange for <input type="file" multiple>
   function handleDocsChange(e) {
@@ -4390,6 +4560,13 @@ const saveTenantUnitSetup = async () => {
 const handleAddTenantWithDocs = async () => {
   try {
     setDocMsg("");
+    const idErrors = trackerType === "room" ? getResidentialIdErrors(newTenant) : {};
+    setResidentialIdErrors(idErrors);
+    if (Object.keys(idErrors).length) return;
+    const relativePhoneError = trackerType !== "shop" ? getRelativePhoneError(newTenant) : "";
+    if (relativePhoneError) { setDocMsg(relativePhoneError); return; }
+    const familyPhoneError = trackerType === "room" ? getFamilyMemberPhoneError(newTenant.otherFamilyMembers) : "";
+    if (familyPhoneError) { setDocMsg(familyPhoneError); return; }
 
     const isInviteFlow = !!invToken;
 
@@ -4476,7 +4653,7 @@ if (firstRentStatus === "ADVANCE_PAID") {
       fd.append("companyAddress", newTenant.companyAddress);
     }
 
-    if (trackerType === "bed") {
+    if (trackerType !== "shop") {
       fd.append("relative1Relation", newTenant.relative1Relation || "Self");
       fd.append("relative1Name", newTenant.relative1Name || "");
       fd.append("relative1Phone", newTenant.relative1Phone || "");
@@ -4487,8 +4664,14 @@ if (firstRentStatus === "ADVANCE_PAID") {
     }
     if (trackerType === "room" && newTenant.familyMembers !== "") {
       fd.append("familyMembers", String(newTenant.familyMembers));
+      fd.append("familyMale", String(newTenant.familyMale || 0));
+      fd.append("familyFemale", String(newTenant.familyFemale || 0));
+      fd.append("familyChildren", String(newTenant.familyChildren || 0));
+      fd.append("otherFamilyMembers", JSON.stringify((newTenant.otherFamilyMembers || []).slice(0, Math.max(0, (Number(newTenant.familyMembers) || 0) - 1))));
+      ["passportNo", "panCardNo", "aadhaarCardNo", "natureOfWork", "previousAddress", "officeName", "officeAddress", "officeMobileNo"].forEach((key) => {
+        if (newTenant[key]) fd.append(key, newTenant[key]);
+      });
     }
-
     fd.append("roomNo", newTenant.roomNo || "");
     if (newTenant.roomId) fd.append("roomId", String(newTenant.roomId));
     if (trackerType === "room" && newTenant.wingName) fd.append("wingName", newTenant.wingName);
@@ -4518,43 +4701,65 @@ if (firstRentStatus === "ADVANCE_PAID") {
       canteenFields.canteenIncludedMeals.forEach((meal) => fd.append("canteenIncludedMeals[]", meal));
     }
 
-    if (selfAadharFile.some((file) => !isAllowedImageFile(file))) {
+    if (trackerType !== "room" && selfAadharFile.some((file) => !isAllowedImageFile(file))) {
       setDocMsg("Self Aadhaar Card must be JPG, JPEG, or PNG."); return;
     }
-    if (parentAadharFile.some((file) => !isAllowedImageFile(file))) {
+    if (trackerType !== "room" && parentAadharFile.some((file) => !isAllowedImageFile(file))) {
       setDocMsg(
         `${trackerType === "room" ? "Partner Aadhaar Card" : "Parent Aadhaar Card"} must be JPG, JPEG, or PNG.`
       ); return;
     }
-    if (photoFile.some((file) => !isAllowedImageFile(file))) {
+    if (trackerType !== "room" && photoFile.some((file) => !isAllowedImageFile(file))) {
       setDocMsg("Tenant Photograph must be JPG, JPEG, or PNG."); return;
     }
-    if (panCardFile.some((file) => !isAllowedImageFile(file))) {
+    if (trackerType !== "room" && panCardFile.some((file) => !isAllowedImageFile(file))) {
       setDocMsg("PAN Card must be JPG, JPEG, or PNG."); return;
     }
-    if (selfAadharFile.length + parentAadharFile.length + photoFile.length + panCardFile.length > 10) {
-      setDocMsg("You can upload a maximum of 10 documents for one tenant."); return;
+    const otherMemberCount = Math.max(0, (Number(newTenant.familyMembers) || 0) - 1);
+    const memberDocumentFiles = familyDocumentRows.flatMap((row) =>
+      (row.memberIndex === "tenant" || Number(row.memberIndex) < otherMemberCount) ? familyMemberDocFiles[row.id] || [] : []
+    );
+    if (memberDocumentFiles.some((file) => !isAllowedImageFile(file))) {
+      setDocMsg("Family member documents must be JPG, JPEG, or PNG."); return;
+    }
+    if ((trackerType === "room" ? memberDocumentFiles.length : selfAadharFile.length + parentAadharFile.length + photoFile.length + panCardFile.length) > 200) {
+      setDocMsg("You can upload a maximum of 200 documents for one tenant."); return;
     }
 
-    for (const file of selfAadharFile) {
+    if (trackerType !== "room") for (const file of selfAadharFile) {
       const f = await compressForUpload(file);
       fd.append("documents", f);
       fd.append("relations", "Self Aadhaar Card");
     }
-    for (const file of parentAadharFile) {
+    if (trackerType !== "room") for (const file of parentAadharFile) {
       const f = await compressForUpload(file);
       fd.append("documents", f);
       fd.append("relations", trackerType === "room" ? "Partner Aadhaar Card" : "Parent Aadhaar Card");
     }
-    for (const file of photoFile) {
+    if (trackerType !== "room") for (const file of photoFile) {
       const f = await compressForUpload(file);
       fd.append("documents", f);
       fd.append("relations", "Tenant Photo");
     }
-    for (const file of panCardFile) {
+    if (trackerType !== "room") for (const file of panCardFile) {
       const f = await compressForUpload(file);
       fd.append("documents", f);
       fd.append("relations", "PAN Card");
+    }
+    for (const row of familyDocumentRows) {
+      const isTenant = row.memberIndex === "tenant";
+      const memberIndex = Number(row.memberIndex);
+      if (!isTenant && memberIndex >= otherMemberCount) continue;
+      const typeLabel = row.kind === "aadhaar" ? "Aadhaar Card" : row.kind === "governmentId" ? "Other Government ID" : "Photo";
+      const relation = isTenant
+        ? row.kind === "aadhaar" ? "Self Aadhaar Card" : row.kind === "photo" ? "Tenant Photo" : "Tenant Other Government ID"
+        : `Family Member ${memberIndex + 1} ${typeLabel}`;
+      const files = familyMemberDocFiles[row.id] || [];
+      for (const file of files) {
+        const compressed = await compressForUpload(file);
+        fd.append("documents", compressed);
+        fd.append("relations", relation);
+      }
     }
 
     // ✅ safe URL build (won’t affect other code)
@@ -4644,6 +4849,8 @@ const closeAddTenantModal = () => {
   setParentAadharFile([]);
   setPhotoFile([]);
   setPanCardFile([]);
+  setFamilyMemberDocFiles({});
+  setFamilyDocumentRows([]);
   setDocMsg("");
 
   // ✅ clear locking states (if you have these)
@@ -6216,7 +6423,7 @@ const updateBreakdownItemStatus = async (item, nextStatus) => {
   // }, []);
   // useEffect(() => {
   //   axios
-  //     .get("    https://rentmobile-api.pnminfotech.com/api/rooms")
+  //     .get("  http://localhost:8000/api/rooms")
   //     .then((response) => setRoomsData(response.data))
   //     .catch((err) => console.error("Failed to fetch rooms:", err));
   // }, []);
@@ -6283,6 +6490,13 @@ const updateBreakdownItemStatus = async (item, nextStatus) => {
 
   const handleAddTenant = async () => {
     try {
+      const idErrors = trackerType === "room" ? getResidentialIdErrors(newTenant) : {};
+      setResidentialIdErrors(idErrors);
+      if (Object.keys(idErrors).length) return;
+      const relativePhoneError = trackerType !== "shop" ? getRelativePhoneError(newTenant) : "";
+      if (relativePhoneError) { setDocMsg(relativePhoneError); return; }
+      const familyPhoneError = trackerType === "room" ? getFamilyMemberPhoneError(newTenant.otherFamilyMembers) : "";
+      if (familyPhoneError) { setDocMsg(familyPhoneError); return; }
       const unitValidation = validateAssignableTenantUnit(newTenant);
       if (!unitValidation.ok) {
         alert(unitValidation.message);
@@ -6357,6 +6571,18 @@ const updateBreakdownItemStatus = async (item, nextStatus) => {
         nearbyPlace: "",
         phoneNo: "",
         familyMembers: "",
+        familyMale: "0",
+        familyFemale: "0",
+        familyChildren: "0",
+        otherFamilyMembers: [],
+        passportNo: "",
+        panCardNo: "",
+        aadhaarCardNo: "",
+        natureOfWork: "",
+        previousAddress: "",
+        officeName: "",
+        officeAddress: "",
+        officeMobileNo: "",
         relativeAddress1: "",
         relativeAddress2: "",
         floorNo: "",
@@ -7288,15 +7514,30 @@ setRentUpdateMode("add");
     setShowShiftModal(true);
   };
 
-  const openDesktopTenantDetails = (tenant) => {
+  const fetchFullTenantRecord = async (tenant) => {
+    if (!tenant?._id) return tenant;
+    try {
+      const response = await axios.get(`${apiUrl}form/${tenant._id}`);
+      const fullTenant = response.data?.form || response.data || tenant;
+      setFormData((current) => current.map((item) => String(item._id) === String(fullTenant._id) ? { ...item, ...fullTenant } : item));
+      return fullTenant;
+    } catch (error) {
+      console.error("Unable to load full tenant record:", error);
+      return tenant;
+    }
+  };
+
+  const openDesktopTenantDetails = async (tenant) => {
     if (!tenant) return;
-    setSelectedTenant(tenant);
+    const fullTenant = await fetchFullTenantRecord(tenant);
+    setSelectedTenant(fullTenant);
     setShowDetailsModal(true);
   };
 
-  const openTenantEditModal = (tenant) => {
+  const openTenantEditModal = async (tenant) => {
     if (!tenant) return;
-    const copy = { ...tenant };
+    const fullTenant = await fetchFullTenantRecord(tenant);
+    const copy = { ...fullTenant };
     const tenantRoomId =
       copy?.roomId?._id || copy?.roomId || copy?.room?._id || copy?.room || "";
     const tenantRoomNo =
@@ -9060,6 +9301,8 @@ setEditReceiptUrl(String(latestRent?.receiptUrl || ""));
     setEditParentAadharFile([]);
     setEditPhotoFile([]);
     setEditPanCardFile([]);
+    setEditFamilyMemberDocFiles({});
+    setEditFamilyDocumentRows([]);
     setEditDocMsg("");
   };
 
@@ -9087,6 +9330,14 @@ setEditReceiptUrl(String(latestRent?.receiptUrl || ""));
         return;
       }
       if (creatingEditInvite) return;
+      const relativePhoneError = trackerType !== "shop" ? getRelativePhoneError(editTenantData) : "";
+      if (relativePhoneError) { alert(relativePhoneError); return; }
+      const familyPhoneError = trackerType === "room" ? getFamilyMemberPhoneError(editTenantData.otherFamilyMembers) : "";
+      if (familyPhoneError) { alert(familyPhoneError); return; }
+      if (trackerType === "room") {
+        const idErrors = getResidentialIdErrors(editTenantData);
+        if (Object.keys(idErrors).length) { alert(Object.values(idErrors)[0]); return; }
+      }
       setCreatingEditInvite(true);
 
       const toNumLocal = (v) => {
@@ -9116,12 +9367,12 @@ setEditReceiptUrl(String(latestRent?.receiptUrl || ""));
         houseNo: editTenantData.houseNo || undefined,
         nearbyPlace: editTenantData.nearbyPlace || undefined,
         relativeAddress: trackerType === "bed" ? editTenantData.relativeAddress || undefined : undefined,
-        relative1Relation: trackerType === "bed" ? editTenantData.relative1Relation || undefined : undefined,
-        relative1Name: trackerType === "bed" ? editTenantData.relative1Name || undefined : undefined,
-        relative1Phone: trackerType === "bed" ? editTenantData.relative1Phone || undefined : undefined,
-        relative2Relation: trackerType === "bed" ? editTenantData.relative2Relation || undefined : undefined,
-        relative2Name: trackerType === "bed" ? editTenantData.relative2Name || undefined : undefined,
-        relative2Phone: trackerType === "bed" ? editTenantData.relative2Phone || undefined : undefined,
+        relative1Relation: trackerType !== "shop" ? editTenantData.relative1Relation || undefined : undefined,
+        relative1Name: trackerType !== "shop" ? editTenantData.relative1Name || undefined : undefined,
+        relative1Phone: trackerType !== "shop" ? editTenantData.relative1Phone || undefined : undefined,
+        relative2Relation: trackerType !== "shop" ? editTenantData.relative2Relation || undefined : undefined,
+        relative2Name: trackerType !== "shop" ? editTenantData.relative2Name || undefined : undefined,
+        relative2Phone: trackerType !== "shop" ? editTenantData.relative2Phone || undefined : undefined,
         familyMembers:
           trackerType === "room" && String(editTenantData.familyMembers || "").trim() !== ""
             ? (() => {
@@ -9129,6 +9380,18 @@ setEditReceiptUrl(String(latestRent?.receiptUrl || ""));
                 return Number.isFinite(parsed) ? parsed : undefined;
               })()
             : undefined,
+        familyMale: trackerType === "room" ? toNumLocal(editTenantData.familyMale) ?? 0 : undefined,
+        familyFemale: trackerType === "room" ? toNumLocal(editTenantData.familyFemale) ?? 0 : undefined,
+        familyChildren: trackerType === "room" ? toNumLocal(editTenantData.familyChildren) ?? 0 : undefined,
+        otherFamilyMembers: trackerType === "room" ? (editTenantData.otherFamilyMembers || []).slice(0, Math.max(0, (Number(editTenantData.familyMembers) || 0) - 1)) : undefined,
+        passportNo: trackerType === "room" ? editTenantData.passportNo || "" : undefined,
+        panCardNo: trackerType === "room" ? editTenantData.panCardNo || "" : undefined,
+        aadhaarCardNo: trackerType === "room" ? editTenantData.aadhaarCardNo || "" : undefined,
+        natureOfWork: trackerType === "room" ? editTenantData.natureOfWork || "" : undefined,
+        previousAddress: trackerType === "room" ? editTenantData.previousAddress || "" : undefined,
+        officeName: trackerType === "room" ? editTenantData.officeName || "" : undefined,
+        officeAddress: trackerType === "room" ? editTenantData.officeAddress || "" : undefined,
+        officeMobileNo: trackerType === "room" ? editTenantData.officeMobileNo || "" : undefined,
         companyAddress: editTenantData.companyAddress || undefined,
         shopBusiness: editTenantData.shopBusiness || undefined,
         shopName: editTenantData.shopName || undefined,
@@ -9198,9 +9461,17 @@ setEditReceiptUrl(String(latestRent?.receiptUrl || ""));
 
   const handleTenantUpdate = async () => {
     try {
+      const familyPhoneError = trackerType === "room" ? getFamilyMemberPhoneError(editTenantData.otherFamilyMembers) : "";
+      if (familyPhoneError) { setEditDocMsg(familyPhoneError); return; }
+      const relativePhoneError = trackerType !== "shop" ? getRelativePhoneError(editTenantData) : "";
+      if (relativePhoneError) { setEditDocMsg(relativePhoneError); return; }
+      if (trackerType === "room") {
+        const idErrors = getResidentialIdErrors(editTenantData);
+        if (Object.keys(idErrors).length) { setEditDocMsg(Object.values(idErrors)[0]); return; }
+      }
       setEditDocMsg("");
       const hasEditDocs =
-        editSelfAadharFile.length > 0 || editParentAadharFile.length > 0 || editPhotoFile.length > 0 || editPanCardFile.length > 0;
+        editSelfAadharFile.length > 0 || editParentAadharFile.length > 0 || editPhotoFile.length > 0 || editPanCardFile.length > 0 || Object.values(editFamilyMemberDocFiles).some((files) => Array.isArray(files) && files.length > 0);
       const firstRentStatus = String(
         editTenantData.firstRentStatus || "NOT_PAID"
       ).trim();
@@ -9283,8 +9554,8 @@ setEditReceiptUrl(String(latestRent?.receiptUrl || ""));
           canteenFields.canteenIncludedMeals.forEach((meal) => fd.append("canteenIncludedMeals[]", meal));
         }
 
-        if (trackerType === "bed") {
-          fd.append("relativeAddress", editTenantData.relativeAddress || "");
+        if (trackerType !== "shop") {
+          if (trackerType === "bed") fd.append("relativeAddress", editTenantData.relativeAddress || "");
           fd.append("relative1Relation", editTenantData.relative1Relation || "");
           fd.append("relative1Name", editTenantData.relative1Name || "");
           fd.append("relative1Phone", editTenantData.relative1Phone || "");
@@ -9292,52 +9563,80 @@ setEditReceiptUrl(String(latestRent?.receiptUrl || ""));
           fd.append("relative2Name", editTenantData.relative2Name || "");
           fd.append("relative2Phone", editTenantData.relative2Phone || "");
         }
-        if (trackerType === "room" && String(editTenantData.familyMembers || "").trim() !== "") {
-          fd.append("familyMembers", String(editTenantData.familyMembers));
+        if (trackerType === "room") {
+          if (String(editTenantData.familyMembers || "").trim() !== "") {
+            fd.append("familyMembers", String(editTenantData.familyMembers));
+          }
+          ["familyMale", "familyFemale", "familyChildren"].forEach((key) => fd.append(key, String(editTenantData[key] || 0)));
+          fd.append("otherFamilyMembers", JSON.stringify((editTenantData.otherFamilyMembers || []).slice(0, Math.max(0, (Number(editTenantData.familyMembers) || 0) - 1))));
+          ["passportNo", "panCardNo", "aadhaarCardNo", "natureOfWork", "previousAddress", "officeName", "officeAddress", "officeMobileNo"].forEach((key) => fd.append(key, editTenantData[key] || ""));
         }
 
-        if (editSelfAadharFile.some((file) => !isAllowedImageFile(file))) {
+        if (trackerType !== "room" && editSelfAadharFile.some((file) => !isAllowedImageFile(file))) {
           setEditDocMsg("Self Aadhaar Card must be JPG, JPEG, or PNG.");
           return;
         }
-        if (editParentAadharFile.some((file) => !isAllowedImageFile(file))) {
+        if (trackerType !== "room" && editParentAadharFile.some((file) => !isAllowedImageFile(file))) {
           setEditDocMsg(
             `${trackerType === "room" ? "Partner Aadhaar Card" : "Parent Aadhaar Card"} must be JPG, JPEG, or PNG.`
           );
           return;
         }
-        if (editPhotoFile.some((file) => !isAllowedImageFile(file))) {
+        if (trackerType !== "room" && editPhotoFile.some((file) => !isAllowedImageFile(file))) {
           setEditDocMsg("Tenant Photograph must be JPG, JPEG, or PNG.");
           return;
         }
-        if (editPanCardFile.some((file) => !isAllowedImageFile(file))) {
+        if (trackerType !== "room" && editPanCardFile.some((file) => !isAllowedImageFile(file))) {
           setEditDocMsg("PAN Card must be JPG, JPEG, or PNG.");
           return;
         }
-        if (editSelfAadharFile.length + editParentAadharFile.length + editPhotoFile.length + editPanCardFile.length > 10) {
-          setEditDocMsg("You can upload a maximum of 10 documents at one time.");
+        const otherMemberCount = Math.max(0, (Number(editTenantData.familyMembers) || 0) - 1);
+        const editFamilyFiles = editFamilyDocumentRows.flatMap((row) =>
+          (row.memberIndex === "tenant" || Number(row.memberIndex) < otherMemberCount) ? editFamilyMemberDocFiles[row.id] || [] : []
+        );
+        if (editFamilyFiles.some((file) => !isAllowedImageFile(file))) {
+          setEditDocMsg("Family member documents must be JPG, JPEG, or PNG.");
+          return;
+        }
+        if ((trackerType === "room" ? editFamilyFiles.length : editSelfAadharFile.length + editParentAadharFile.length + editPhotoFile.length + editPanCardFile.length) > 200) {
+          setEditDocMsg("You can upload a maximum of 200 documents at one time.");
           return;
         }
 
-        for (const file of editSelfAadharFile) {
+        if (trackerType !== "room") for (const file of editSelfAadharFile) {
           const f = await compressForUpload(file);
           fd.append("documents", f);
           fd.append("relations", "Self Aadhaar Card");
         }
-        for (const file of editParentAadharFile) {
+        if (trackerType !== "room") for (const file of editParentAadharFile) {
           const f = await compressForUpload(file);
           fd.append("documents", f);
           fd.append("relations", trackerType === "room" ? "Partner Aadhaar Card" : "Parent Aadhaar Card");
         }
-        for (const file of editPhotoFile) {
+        if (trackerType !== "room") for (const file of editPhotoFile) {
           const f = await compressForUpload(file);
           fd.append("documents", f);
           fd.append("relations", "Tenant Photo");
         }
-        for (const file of editPanCardFile) {
+        if (trackerType !== "room") for (const file of editPanCardFile) {
           const f = await compressForUpload(file);
           fd.append("documents", f);
           fd.append("relations", "PAN Card");
+        }
+        for (const row of editFamilyDocumentRows) {
+          const isTenant = row.memberIndex === "tenant";
+          const memberIndex = Number(row.memberIndex);
+          if (!isTenant && memberIndex >= otherMemberCount) continue;
+          const typeLabel = row.kind === "aadhaar" ? "Aadhaar Card" : row.kind === "governmentId" ? "Other Government ID" : "Photo";
+          const relation = isTenant
+            ? row.kind === "aadhaar" ? "Self Aadhaar Card" : row.kind === "photo" ? "Tenant Photo" : "Tenant Other Government ID"
+            : `Family Member ${memberIndex + 1} ${typeLabel}`;
+          const files = editFamilyMemberDocFiles[row.id] || [];
+          for (const file of files) {
+            const compressed = await compressForUpload(file);
+            fd.append("documents", compressed);
+            fd.append("relations", relation);
+          }
         }
 
         const API_ROOT = String(apiUrl).replace(/\/+$/, "");
@@ -9386,6 +9685,8 @@ setEditReceiptUrl(String(latestRent?.receiptUrl || ""));
         updatePayload.canteenMealPrices = undefined;
         updatePayload.canteenIncludedMeals = undefined;
         updatePayload.relativeAddress = undefined;
+      }
+      if (trackerType === "shop") {
         updatePayload.relative1Relation = undefined;
         updatePayload.relative1Name = undefined;
         updatePayload.relative1Phone = undefined;
@@ -9402,6 +9703,11 @@ setEditReceiptUrl(String(latestRent?.receiptUrl || ""));
                 return Number.isFinite(parsed) ? parsed : undefined;
               })()
             : undefined;
+        updatePayload.familyMale = toNum(editTenantData.familyMale) ?? 0;
+        updatePayload.familyFemale = toNum(editTenantData.familyFemale) ?? 0;
+        updatePayload.familyChildren = toNum(editTenantData.familyChildren) ?? 0;
+        updatePayload.otherFamilyMembers = (editTenantData.otherFamilyMembers || []).slice(0, Math.max(0, (Number(editTenantData.familyMembers) || 0) - 1));
+        ["passportNo", "panCardNo", "aadhaarCardNo", "natureOfWork", "previousAddress", "officeName", "officeAddress", "officeMobileNo"].forEach((key) => { updatePayload[key] = editTenantData[key] || ""; });
       }
 
       const response = await axios.put(
@@ -9797,14 +10103,25 @@ const upcomingRentEntries = useMemo(() => {
           const c = getMonthCell(t, y, m);
           if (!c || c.label !== "Upcoming") return null;
 
+          // The upcoming card's date is the cycle start date. Rent payments
+          // are stored under the month in which that cycle ends (the same
+          // month used by the tracker columns and rent quote endpoint).
+          const cycleStart =
+            getCycleStartForMonth(t, y, m) ||
+            cycleStartForRentMonth(t, new Date(y, m, 1));
+          const cycleEnd = cycleStart ? new Date(cycleStart) : null;
+          if (cycleEnd) cycleEnd.setMonth(cycleEnd.getMonth() + 1);
+          const billingYear = cycleEnd?.getFullYear() ?? y;
+          const billingMonth = cycleEnd?.getMonth() ?? m;
+
           return {
-            key: `${t._id}-${y}-${m}`,
+            key: `${t._id}-${billingYear}-${billingMonth}`,
             tenant: t,
             roomNo: t.roomNo,
             bedNo: t.bedNo,
-            billYear: y,
-            billMonth: m,
-            monthText: new Date(y, m, 1).toLocaleString("default", {
+            billYear: billingYear,
+            billMonth: billingMonth,
+            monthText: new Date(billingYear, billingMonth, 1).toLocaleString("default", {
               month: "long",
               year: "numeric",
             }),
@@ -10148,40 +10465,26 @@ const isTodayOrFuture = (iso) => {
   💰 Rent
 </button>
 
-  <button
-    className={`tab-pill ${activeTab === "canteen" ? "active" : ""}`}
-    onClick={() => setActiveTab("canteen")}
-  >
-    Canteen
-  </button>
+  {trackerNavigationTypes.some((item) => item.value === "bed") && unitAccess?.organization?.features?.canteenEnabled && (
+    <button className={`tab-pill ${activeTab === "canteen" ? "active" : ""}`} onClick={() => setActiveTab("canteen")}>
+      Canteen
+    </button>
+  )}
 
-  <button
-    className={`tab-pill ${activeTab === "light-hostel" ? "active" : ""}`}
-    onClick={() => setActiveTab("light-hostel")}
-  >
-    Light Bill Hostel
-  </button>
+  {trackerNavigationTypes.some((item) => item.value === "bed") && <>
+    <button className={`tab-pill ${activeTab === "light-hostel" ? "active" : ""}`} onClick={() => setActiveTab("light-hostel")}>Light Bill Hostel</button>
+    <button className={`tab-pill ${activeTab === "expenses-hostel" ? "active" : ""}`} onClick={() => setActiveTab("expenses-hostel")}>Expenses Hostel</button>
+  </>}
 
-  <button
-    className={`tab-pill ${activeTab === "light-room-shop" ? "active" : ""}`}
-    onClick={() => setActiveTab("light-room-shop")}
-  >
-    Light Bill Room + Shop
-  </button>
+  {trackerNavigationTypes.some((item) => item.value === "room") && <>
+    <button className={`tab-pill ${activeTab === "light-room" ? "active" : ""}`} onClick={() => setActiveTab("light-room")}>Light Bill Residential Rooms</button>
+    <button className={`tab-pill ${activeTab === "expenses-room" ? "active" : ""}`} onClick={() => setActiveTab("expenses-room")}>Expenses Residential Rooms</button>
+  </>}
 
-  <button
-    className={`tab-pill ${activeTab === "expenses-hostel" ? "active" : ""}`}
-    onClick={() => setActiveTab("expenses-hostel")}
-  >
-    Expenses Hostel
-  </button>
-
-  <button
-    className={`tab-pill ${activeTab === "expenses-room-shop" ? "active" : ""}`}
-    onClick={() => setActiveTab("expenses-room-shop")}
-  >
-    Expenses Room + Shop
-  </button>
+  {trackerNavigationTypes.some((item) => item.value === "shop") && <>
+    <button className={`tab-pill ${activeTab === "light-shop" ? "active" : ""}`} onClick={() => setActiveTab("light-shop")}>Light Bill Commercial Shop</button>
+    <button className={`tab-pill ${activeTab === "expenses-shop" ? "active" : ""}`} onClick={() => setActiveTab("expenses-shop")}>Expenses Commercial Shop</button>
+  </>}
 
   <button
     className={`tab-pill ${activeTab === 'staff' ? 'active' : ''}`}
@@ -10806,6 +11109,11 @@ const isTodayOrFuture = (iso) => {
         onNextMonths={goRight}
         canPrevMonths={canLeft}
         canNextMonths={canRight}
+        getVisibleMonthsForRow={getVisibleMonthsForRow}
+        onPrevRowMonths={goRowLeft}
+        onNextRowMonths={goRowRight}
+        canRowGoLeft={canRowGoLeft}
+        canRowGoRight={canRowGoRight}
         onOpenTenant={openTenantDetails}
         onOpenHistory={showRentHistory}
         onEditMonth={(tenant, month) =>
@@ -10992,6 +11300,9 @@ const isTodayOrFuture = (iso) => {
                       const isStructuredRow = Boolean(combinedRows);
                       const rowType = isStructuredRow ? row?.type : "tenant";
                       const tenant = rowType === "tenant" ? (isStructuredRow ? row?.tenant : row) : null;
+                      const tenantJoiningDate = tenant?.joiningDate
+                        ? parseOccupancyDate(tenant.joiningDate)
+                        : null;
                       const buildingLabel = getPropertyBuildingLabelForRow(row, isStructuredRow);
                       const absoluteRowIdx = (currentTablePage - 1) * tableRowsPerPage + rowIdx;
                       const previousRow = absoluteRowIdx > 0 ? tableRows[absoluteRowIdx - 1] : null;
@@ -11182,6 +11493,11 @@ const isTodayOrFuture = (iso) => {
                                     </div>
 
                                     <div className="tenant-meta">{tenant.phoneNo}</div>
+                                    {tenantJoiningDate && !Number.isNaN(tenantJoiningDate.getTime()) && (
+                                      <div className="tenant-meta">
+                                        Joined: {tenantJoiningDate.toLocaleDateString("en-IN")}
+                                      </div>
+                                    )}
                                     <div className="mt-1" style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
                                       {tenant.firstRentStatus === "ADVANCE_PAID" ? (
                                         <span className="badge bg-info text-dark">Advance paid</span>
@@ -11427,11 +11743,19 @@ const isTodayOrFuture = (iso) => {
                               <button
                                 className="action-btn action-edit"
                                 onClick={() => {
-                                  setEditTenantData(tenant);
+                                  setEditTenantData({
+                                    ...tenant,
+                                    otherFamilyMembers: Array.from(
+                                      { length: Math.max(0, Math.min(50, Number(tenant.familyMembers) || 0) - 1) },
+                                      (_, index) => tenant.otherFamilyMembers?.[index] || { name: "", age: "", occupation: "", phone: "" }
+                                    ),
+                                  });
                                   setEditSelfAadharFile([]);
                                   setEditParentAadharFile([]);
                                   setEditPhotoFile([]);
                                   setEditPanCardFile([]);
+                                  setEditFamilyMemberDocFiles({});
+                                  setEditFamilyDocumentRows([]);
                                   setEditDocMsg("");
                                   setShowEditModal(true);
                                 }}
@@ -11904,7 +12228,7 @@ const isTodayOrFuture = (iso) => {
         <div className="modal-content">
           <div className="modal-header">
             <h5 className="modal-title">
-              Admission Form — {formTenant?.name || ""}
+              {formTenantType === "bed" ? "Admission Form" : "Tenant Verification Form"} — {formTenant?.name || ""}
             </h5>
    <button
   type="button"
@@ -11918,7 +12242,7 @@ const isTodayOrFuture = (iso) => {
           </div>
 
           <div className="modal-body">
-            {formTenant ? <FormDownload formData={formTenant} /> : null}
+            {formTenant ? (formTenantType === "bed" ? <FormDownload formData={formTenant} /> : <TenantPoliceVerificationForm tenant={formTenant} />) : null}
           </div>
         </div>
       </div>
@@ -13237,8 +13561,7 @@ const isTodayOrFuture = (iso) => {
                 </>
               )}
 
-
-
+              {trackerType === "room" && <ResidentialRelativeFields tenant={newTenant} setTenant={setNewTenant} idPrefix="add-room" />}
 
     {trackerType === "shop" ? (
                 <div className="col-12 col-md-6">
@@ -13261,22 +13584,19 @@ const isTodayOrFuture = (iso) => {
               ) : (
                 <>
                   {trackerType === "room" && (
-                    <div className="col-12 col-md-6">
-                      <label className="form-label">No. of Family Members</label>
-                      <input
-                        type="number"
-                        min="0"
-                        className="form-control"
-                        value={newTenant.familyMembers || ""}
-                        onChange={(e) =>
-                          setNewTenant({
-                            ...newTenant,
-                            familyMembers: e.target.value,
-                          })
-                        }
-                        placeholder="Enter family members count"
-                      />
-                    </div>
+                    <>
+                      <div className="col-12 col-md-6">
+                        <label className="form-label">No. of Family Members</label>
+                        <input type="number" min="0" max="50" className="form-control" value={newTenant.familyMembers || ""} onChange={(e) => {
+                          const count = Math.min(50, Math.max(0, Number(e.target.value) || 0));
+                          const otherMemberCount = Math.max(0, count - 1);
+                          setNewTenant((prev) => ({ ...prev, familyMembers: e.target.value, otherFamilyMembers: Array.from({ length: otherMemberCount }, (_, index) => prev.otherFamilyMembers?.[index] || { name: "", age: "", occupation: "", phone: "" }) }));
+                        }} placeholder="Enter family members count" />
+                      </div>
+                      {[ ["familyMale", "Male"], ["familyFemale", "Female"], ["familyChildren", "Children's"] ].map(([key, label]) => <div className="col-4 col-md-2" key={key}><label className="form-label">{label}</label><input type="number" min="0" className="form-control" value={newTenant[key] ?? "0"} onChange={(e) => setNewTenant((prev) => ({ ...prev, [key]: e.target.value }))} /></div>)}
+                      {(newTenant.otherFamilyMembers || []).slice(0, Math.max(0, Math.min(50, Number(newTenant.familyMembers) || 0) - 1)).map((member, index) => <div className="col-12" key={index}><div className="border rounded p-3"><div className="mb-2">Other Family Member {index + 1}</div><div className="row g-2">{[["name", "Name"], ["age", "Age"], ["occupation", "Occupation"], ["phone", "Mobile No."]].map(([key, placeholder]) => <div className="col-md-3" key={key}><input className="form-control" placeholder={placeholder} type={key === "phone" ? "tel" : "text"} maxLength={key === "phone" ? 10 : undefined} value={member[key] || ""} onChange={(e) => setNewTenant((prev) => ({ ...prev, otherFamilyMembers: prev.otherFamilyMembers.map((item, itemIndex) => itemIndex === index ? { ...item, [key]: key === "phone" ? e.target.value.replace(/\D/g, "").slice(0, 10) : e.target.value } : item) }))} /></div>)}</div></div></div>)}
+                      {[["passportNo", "Passport No (optional)"], ["panCardNo", "Pan Card No"], ["aadhaarCardNo", "Aadhaar Card No"], ["natureOfWork", "Nature Of Work"], ["previousAddress", "Previous Address of Tenant"], ["officeName", "Office Name"], ["officeAddress", "Office Address / Company Address"], ["officeMobileNo", "Office Mobile No"]].map(([key, label]) => <div className={key === "previousAddress" ? "col-12" : "col-12 col-md-6"} key={key}><label className="form-label">{label}</label>{key === "previousAddress" ? <textarea className="form-control" value={newTenant[key] || ""} onChange={(e) => setNewTenant((prev) => ({ ...prev, [key]: e.target.value }))} placeholder="Enter previous address" /> : <input type={key === "officeMobileNo" ? "tel" : "text"} className={`form-control${residentialIdErrors[key] ? " is-invalid" : ""}`} value={newTenant[key] || ""} onChange={(e) => { const value = key === "panCardNo" || key === "passportNo" ? e.target.value.toUpperCase() : e.target.value; setNewTenant((prev) => ({ ...prev, [key]: value })); setResidentialIdErrors((prev) => ({ ...prev, [key]: getResidentialIdErrors({ ...newTenant, [key]: value })[key] })); }} placeholder={key === "officeMobileNo" ? "10-digit number" : ""} maxLength={key === "aadhaarCardNo" ? 12 : key === "panCardNo" || key === "passportNo" ? 10 : undefined} />}{residentialIdErrors[key] && <div className="invalid-feedback d-block">{residentialIdErrors[key]}</div>}</div>)}
+                    </>
                   )}
                   
 
@@ -13339,7 +13659,7 @@ const isTodayOrFuture = (iso) => {
                   Upload Documents
                 </label>
 
-                <div className="row g-3">
+                {trackerType === "room" ? renderFamilyDocumentSection() : <div className="row g-3">
                   {/* Self Aadhaar */}
                   <div className="col-12 col-md-4">
                     {renderDocumentUploader({ id: "add-self-aadhaar", label: "Self Aadhaar Card", files: selfAadharFile, setFiles: setSelfAadharFile, messageSetter: setDocMsg })}
@@ -13362,7 +13682,7 @@ const isTodayOrFuture = (iso) => {
                       {renderDocumentUploader({ id: "add-pan-card", label: "PAN Card", files: panCardFile, setFiles: setPanCardFile, messageSetter: setDocMsg })}
                     </div>
                   )}
-                </div>
+                </div>}
 
                 {docMsg && (
                   <small className="d-block mt-2 text-danger">{docMsg}</small>
@@ -13393,6 +13713,13 @@ const isTodayOrFuture = (iso) => {
     if (creatingInvite || submittingAdd || addTenantNeedsUnitSetup) return; // ✅ guard
 
     try {
+      const idErrors = trackerType === "room" ? getResidentialIdErrors(newTenant) : {};
+      setResidentialIdErrors(idErrors);
+      if (Object.keys(idErrors).length) return;
+      const relativePhoneError = trackerType !== "shop" ? getRelativePhoneError(newTenant) : "";
+      if (relativePhoneError) { alert(relativePhoneError); return; }
+      const familyPhoneError = trackerType === "room" ? getFamilyMemberPhoneError(newTenant.otherFamilyMembers) : "";
+      if (familyPhoneError) { alert(familyPhoneError); return; }
       setCreatingInvite(true);
 
       const INVITES_URL = `${String(apiUrl).replace(/\/+$/, "")}/invites`;
@@ -13464,28 +13791,40 @@ const isTodayOrFuture = (iso) => {
           trackerType === "bed"
             ? String(newTenant.relativeAddress || "").trim() || undefined
             : undefined,
-        relative1Relation: trackerType === "bed" ? newTenant.relative1Relation || undefined : undefined,
+      relative1Relation: trackerType !== "shop" ? newTenant.relative1Relation || undefined : undefined,
         relative1Name:
-          trackerType === "bed"
+        trackerType !== "shop"
             ? String(newTenant.relative1Name || "").trim() || undefined
             : undefined,
         relative1Phone:
-          trackerType === "bed"
+        trackerType !== "shop"
             ? String(newTenant.relative1Phone || "").trim() || undefined
             : undefined,
-        relative2Relation: trackerType === "bed" ? newTenant.relative2Relation || undefined : undefined,
+      relative2Relation: trackerType !== "shop" ? newTenant.relative2Relation || undefined : undefined,
         relative2Name:
-          trackerType === "bed"
+        trackerType !== "shop"
             ? String(newTenant.relative2Name || "").trim() || undefined
             : undefined,
         relative2Phone:
-          trackerType === "bed"
+        trackerType !== "shop"
             ? String(newTenant.relative2Phone || "").trim() || undefined
             : undefined,
         familyMembers:
           trackerType === "room" && String(newTenant.familyMembers || "").trim() !== ""
             ? Number(newTenant.familyMembers)
             : undefined,
+        familyMale: trackerType === "room" ? toNum(newTenant.familyMale) ?? 0 : undefined,
+        familyFemale: trackerType === "room" ? toNum(newTenant.familyFemale) ?? 0 : undefined,
+        familyChildren: trackerType === "room" ? toNum(newTenant.familyChildren) ?? 0 : undefined,
+        otherFamilyMembers: trackerType === "room" ? (newTenant.otherFamilyMembers || []).slice(0, Math.max(0, (Number(newTenant.familyMembers) || 0) - 1)) : undefined,
+        passportNo: trackerType === "room" ? newTenant.passportNo || "" : undefined,
+        panCardNo: trackerType === "room" ? newTenant.panCardNo || "" : undefined,
+        aadhaarCardNo: trackerType === "room" ? newTenant.aadhaarCardNo || "" : undefined,
+        natureOfWork: trackerType === "room" ? newTenant.natureOfWork || "" : undefined,
+        previousAddress: trackerType === "room" ? newTenant.previousAddress || "" : undefined,
+        officeName: trackerType === "room" ? newTenant.officeName || "" : undefined,
+        officeAddress: trackerType === "room" ? newTenant.officeAddress || "" : undefined,
+        officeMobileNo: trackerType === "room" ? newTenant.officeMobileNo || "" : undefined,
         companyAddress: String(newTenant.companyAddress || "").trim() || undefined,
         shopBusiness: String(newTenant.shopBusiness || "").trim() || undefined,
         shopName: String(newTenant.shopName || "").trim() || undefined,
@@ -14601,8 +14940,9 @@ const isTodayOrFuture = (iso) => {
     {/* View Details */}
     <button
       className="btn btn-outline-info btn-sm"
-      onClick={() => {
-        setSelectedTenant(editTenantData);
+      onClick={async () => {
+        const fullTenant = await fetchFullTenantRecord(editTenantData);
+        setSelectedTenant({ ...fullTenant, ...editTenantData });
         setShowDetailsModal(true);
       }}
     >
@@ -14937,21 +15277,26 @@ const isTodayOrFuture = (iso) => {
               {trackerType !== "shop" && (
                 <>
                   {trackerType === "room" && (
-                    <div className="col-12 col-md-6">
-                      <label className="form-label">No. of Family Members</label>
-                      <input
-                        type="number"
-                        min="0"
-                        className="form-control"
-                        value={editTenantData.familyMembers || ""}
-                        onChange={(e) =>
-                          setEditTenantData({
-                            ...editTenantData,
-                            familyMembers: e.target.value,
-                          })
-                        }
-                      />
-                    </div>
+                    <>
+                      <div className="col-12 col-md-6">
+                        <label className="form-label">No. of Family Members</label>
+                        <input type="number" min="0" max="50" className="form-control" value={editTenantData.familyMembers || ""} onChange={(e) => {
+                          const count = Math.min(50, Math.max(0, Number(e.target.value) || 0));
+                          const otherMemberCount = Math.max(0, count - 1);
+                          setEditTenantData((prev) => ({ ...prev, familyMembers: e.target.value, otherFamilyMembers: Array.from({ length: otherMemberCount }, (_, index) => prev.otherFamilyMembers?.[index] || { name: "", age: "", occupation: "", phone: "" }) }));
+                        }} />
+                      </div>
+                      {[ ["familyMale", "Male"], ["familyFemale", "Female"], ["familyChildren", "Children's"] ].map(([key, label]) => <div className="col-4 col-md-2" key={`edit-${key}`}><label className="form-label">{label}</label><input type="number" min="0" className="form-control" value={editTenantData[key] ?? "0"} onChange={(e) => setEditTenantData((prev) => ({ ...prev, [key]: e.target.value }))} /></div>)}
+                      {(editTenantData.otherFamilyMembers || []).slice(0, Math.max(0, Math.min(50, Number(editTenantData.familyMembers) || 0) - 1)).map((member, index) => <div className="col-12" key={`edit-family-${index}`}><div className="border rounded p-3"><div className="mb-2">Other Family Member {index + 1}</div><div className="row g-2">{[["name", "Name"], ["age", "Age"], ["occupation", "Occupation"], ["phone", "Mobile No."]].map(([key, placeholder]) => <div className="col-md-3" key={key}><input className="form-control" placeholder={placeholder} type={key === "phone" ? "tel" : "text"} maxLength={key === "phone" ? 10 : undefined} value={member[key] || ""} onChange={(e) => setEditTenantData((prev) => ({ ...prev, otherFamilyMembers: prev.otherFamilyMembers.map((item, itemIndex) => itemIndex === index ? { ...item, [key]: key === "phone" ? e.target.value.replace(/\D/g, "").slice(0, 10) : e.target.value } : item) }))} /></div>)}</div></div></div>)}
+                      {[ ["passportNo", "Passport No (optional)"], ["panCardNo", "PAN Card No"], ["aadhaarCardNo", "Aadhaar Card No"], ["natureOfWork", "Nature Of Work"], ["previousAddress", "Previous Address of Tenant"], ["officeName", "Office Name"], ["officeAddress", "Office Address / Company Address"], ["officeMobileNo", "Office Mobile No"] ].map(([key, label]) => {
+                        const error = getResidentialIdErrors(editTenantData)[key];
+                        return <div className={key === "previousAddress" ? "col-12" : "col-12 col-md-6"} key={`edit-${key}`}><label className="form-label">{label}</label>{key === "previousAddress" ? <textarea className="form-control" value={editTenantData[key] || ""} onChange={(e) => setEditTenantData((prev) => ({ ...prev, [key]: e.target.value }))} placeholder="Enter previous address" /> : <input type={key === "officeMobileNo" ? "tel" : "text"} className={`form-control${error ? " is-invalid" : ""}`} value={editTenantData[key] || ""} onChange={(e) => {
+                          const rawValue = e.target.value;
+                          const value = key === "aadhaarCardNo" || key === "officeMobileNo" ? rawValue.replace(/\D/g, "").slice(0, key === "aadhaarCardNo" ? 12 : 10) : key === "panCardNo" || key === "passportNo" ? rawValue.toUpperCase() : rawValue;
+                          setEditTenantData((prev) => ({ ...prev, [key]: value }));
+                        }} placeholder={key === "officeMobileNo" ? "10-digit number" : ""} maxLength={key === "aadhaarCardNo" ? 12 : key === "panCardNo" ? 10 : key === "passportNo" ? 8 : key === "officeMobileNo" ? 10 : undefined} />}{error && <div className="invalid-feedback d-block">{error}</div>}</div>;
+                      })}
+                    </>
                   )}
 
                   {/* COLLEGE/COMPANY JOINING DATE */}
@@ -15366,6 +15711,13 @@ const isTodayOrFuture = (iso) => {
                 </div>
               )}
 
+              {trackerType === "room" && (
+                <div className="col-12 col-md-6">
+                  <label className="form-label">Date of Birth <span className="text-muted">(optional)</span></label>
+                  <input type="date" className="form-control" value={editTenantData.dob?.split("T")[0] || ""} onChange={(e) => setEditTenantData((prev) => ({ ...prev, dob: e.target.value }))} />
+                </div>
+              )}
+
               {/* DEPOSIT */}
               <div className="col-12 col-md-6">
                 <label className="form-label">Deposit Amount</label>
@@ -15507,6 +15859,8 @@ const isTodayOrFuture = (iso) => {
                 </>
               )}
 
+              {trackerType === "room" && <ResidentialRelativeFields tenant={editTenantData} setTenant={setEditTenantData} idPrefix="edit-room" />}
+
               {/* Upload Documents (Edit) */}
               <div className="col-12 col-md-12">
                 <label className="form-label d-block mb-2">
@@ -15531,7 +15885,7 @@ const isTodayOrFuture = (iso) => {
                   </div>
                 )}
 
-                <div className="row g-3">
+                {trackerType === "room" ? renderFamilyDocumentSection(true) : <div className="row g-3">
                   {/* Self Aadhaar */}
                   <div className="col-12 col-md-4">
                     {renderDocumentUploader({ id: "edit-self-aadhaar", label: "Self Aadhaar Card", files: editSelfAadharFile, setFiles: setEditSelfAadharFile, messageSetter: setEditDocMsg })}
@@ -15552,7 +15906,7 @@ const isTodayOrFuture = (iso) => {
                       {renderDocumentUploader({ id: "edit-pan-card", label: "PAN Card", files: editPanCardFile, setFiles: setEditPanCardFile, messageSetter: setEditDocMsg })}
                     </div>
                   )}
-                </div>
+                </div>}
 
                 {editDocMsg && (
                   <small className="d-block mt-2 text-danger">
@@ -16350,7 +16704,7 @@ const isTodayOrFuture = (iso) => {
                       Rent History
                     </button>
                   </li>
-                  {trackerType !== "shop" && (
+                  {trackerType === "bed" && (
                     <li className="nav-item" role="presentation">
                       <button
                         className="nav-link"
@@ -16434,11 +16788,37 @@ const isTodayOrFuture = (iso) => {
                         ).toLocaleString("en-IN")}
                       </li>
                       <li className="list-group-item">
-                        Address: {selectedTenant.address}
+                        Address: {selectedTenant.address || "—"}
                       </li>
-                      {trackerType !== "shop" && (
+                      {trackerType === "room" && <>
+                        <li className="list-group-item">Building: {selectedTenant.category || selectedTenant.buildingName || "—"}</li>
+                        <li className="list-group-item">Wing: {selectedTenant.wingName || "—"}</li>
+                        <li className="list-group-item">Floor: {selectedTenant.floorNo || "—"}</li>
+                        <li className="list-group-item">Flat type: {selectedTenant.flatType || "—"}</li>
+                        <li className="list-group-item">House / Flat No.: {selectedTenant.houseNo || "—"}</li>
+                        <li className="list-group-item">City: {selectedTenant.city || "—"}</li>
+                        <li className="list-group-item">State: {selectedTenant.state || "—"}</li>
+                        <li className="list-group-item">Pincode: {selectedTenant.pincode || "—"}</li>
+                        <li className="list-group-item">Nearby place: {selectedTenant.nearbyPlace || "—"}</li>
+                        <li className="list-group-item">Family members: {selectedTenant.familyMembers ?? "—"}</li>
+                        <li className="list-group-item">Male: {selectedTenant.familyMale ?? 0} · Female: {selectedTenant.familyFemale ?? 0} · Children: {selectedTenant.familyChildren ?? 0}</li>
+                        {(selectedTenant.otherFamilyMembers || []).map((member, index) => <li className="list-group-item" key={`detail-family-${index}`}>
+                          Family Member {index + 1}: {member.name || "—"}; Age: {member.age || "—"}; Occupation: {member.occupation || "—"}; Mobile: {member.phone || "—"}
+                        </li>)}
+                        <li className="list-group-item">Passport No.: {selectedTenant.passportNo || "—"}</li>
+                        <li className="list-group-item">PAN Card No.: {selectedTenant.panCardNo || "—"}</li>
+                        <li className="list-group-item">Aadhaar Card No.: {selectedTenant.aadhaarCardNo || "—"}</li>
+                        <li className="list-group-item">Nature of work: {selectedTenant.natureOfWork || "—"}</li>
+                        <li className="list-group-item">Previous address: {selectedTenant.previousAddress || "—"}</li>
+                        <li className="list-group-item">Office name: {selectedTenant.officeName || "—"}</li>
+                        <li className="list-group-item">Office / company address: {selectedTenant.officeAddress || selectedTenant.companyAddress || "—"}</li>
+                        <li className="list-group-item">Office mobile: {selectedTenant.officeMobileNo || "—"}</li>
+                        <li className="list-group-item">Relative 1: {[selectedTenant.relative1Relation, selectedTenant.relative1Name, selectedTenant.relativeAddress1, selectedTenant.relative1Phone].filter(Boolean).join(" · ") || "—"}</li>
+                        <li className="list-group-item">Relative 2: {[selectedTenant.relative2Relation, selectedTenant.relative2Name, selectedTenant.relativeAddress2, selectedTenant.relative2Phone].filter(Boolean).join(" · ") || "—"}</li>
+                      </>}
+                      {trackerType !== "shop" && trackerType !== "room" && (
                         <li className="list-group-item">
-                          Company Address: {selectedTenant.companyAddress}
+                          Company Address: {selectedTenant.companyAddress || "—"}
                         </li>
                       )}
                       <li className="list-group-item">
@@ -16666,7 +17046,7 @@ const isTodayOrFuture = (iso) => {
                     </div>
                   </div>
 
-                  <div
+                  {trackerType === "bed" && <div
                     className="tab-pane fade"
                     id="canteen-history"
                     role="tabpanel"
@@ -16726,7 +17106,7 @@ const isTodayOrFuture = (iso) => {
                     ) : (
                       <p className="text-muted mb-0">No canteen history available.</p>
                     )}
-                  </div>
+                  </div>}
                 </div>
               </div>
 

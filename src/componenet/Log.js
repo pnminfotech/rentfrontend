@@ -9,7 +9,7 @@ import { getAppBootstrap, requestSaasLoginEmailCode, requestSaasLoginPhoneCode, 
 import { getPostLoginPath } from "../utils/saasNavigation";
 // import { API, setToken } from "../tenant/tenantApi";
 // Single API base
-// const API = (process.env.REACT_APP_API_BASE || "    https://rentmobile-api.pnminfotech.com/api").replace(/\/+$/, "");
+// const API = (process.env.REACT_APP_API_BASE || "  http://localhost:8000/api").replace(/\/+$/, "");
 // const setTenantToken = (t) => localStorage.setItem("tenantToken", t);
 import { API, setToken } from "../tenant/tenantApi";
 // (Optional) helper to keep only digits
@@ -82,40 +82,77 @@ function OtpCodeInput({ value, onChange, disabled = false, autoComplete = false 
   );
 }
 
-// Generate candidate phone formats. We will try them for request-otp until one works,
-// then reuse the exact working value for verify.
-function phoneCandidates(raw) {
-  const trimmed = String(raw || "").trim();
-  const d = digitsOnly(trimmed);
-  const last10 = d.slice(-10);
+const TENANT_OTP_STORAGE_KEY = "tenantLoginOtpPending";
 
-  const candidates = [];
-  if (trimmed.startsWith("+")) candidates.push(trimmed); // user already typed E.164
-  if (last10) {
-    candidates.push(last10);         // 9876543210
-    candidates.push("+91" + last10); // +91xxxxxxxxxx (adjust/remove if not India)
-    candidates.push("0" + last10);   // 0xxxxxxxxxx
+function readPendingTenantOtp() {
+  try {
+    const pending = JSON.parse(localStorage.getItem(TENANT_OTP_STORAGE_KEY) || "null");
+    return pending?.otpId && pending?.phone ? pending : null;
+  } catch {
+    return null;
   }
-  return [...new Set(candidates)];
+}
+
+function formatOtpTimer(seconds) {
+  const safe = Math.max(0, Number(seconds) || 0);
+  return `${String(Math.floor(safe / 60)).padStart(2, "0")}:${String(safe % 60).padStart(2, "0")}`;
 }
 
 // ---------- Tenant inline login (OTP) ----------
-function TenantLoginInline({ onLoggedIn }) {
-  const [step, setStep] = useState(1);
-  const [phone, setPhone] = useState("");
-  const [requestedPhone, setRequestedPhone] = useState(""); // exact phone sent for OTP
+export function TenantLoginInline({ onLoggedIn }) {
+  const [challenge, setChallenge] = useState(readPendingTenantOtp);
+  const [phone, setPhone] = useState(() => readPendingTenantOtp()?.phone || "");
   const [otp, setOtp] = useState("");
   const [devCode, setDevCode] = useState("");
-  const [otpId, setOtpId] = useState("");
   const [busy, setBusy] = useState(false);
-  const [expiresIn, setExpiresIn] = useState(null);
+  const [now, setNow] = useState(Date.now());
   const [err, setErr] = useState("");
 
   useEffect(() => {
-    if (!expiresIn) return;
-    const i = setInterval(() => setExpiresIn((s) => (s && s > 0 ? s - 1 : 0)), 1000);
-    return () => clearInterval(i);
-  }, [expiresIn]);
+    if (!challenge?.otpId) return undefined;
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [challenge?.otpId]);
+
+  useEffect(() => {
+    const pending = readPendingTenantOtp();
+    if (!pending) return undefined;
+    let cancelled = false;
+    axios.post(`${API}/tenant/auth/challenge/status`, { phone: pending.phone, otpId: pending.otpId })
+      .then(({ data }) => {
+        if (cancelled) return;
+        const restored = { ...pending, ...data };
+        setChallenge(restored);
+        localStorage.setItem(TENANT_OTP_STORAGE_KEY, JSON.stringify(restored));
+        setNow(Date.now());
+      })
+      .catch((error) => {
+        if (cancelled || error?.response?.status !== 404) return;
+        localStorage.removeItem(TENANT_OTP_STORAGE_KEY);
+        setChallenge(null);
+        setErr("Your sign-in request expired. Please request a new OTP.");
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  const saveChallenge = (data, phoneValue) => {
+    if (!data?.otpId) return false;
+    const next = { ...data, phone: phoneValue };
+    setChallenge(next);
+    setPhone(phoneValue);
+    setOtp("");
+    setNow(Date.now());
+    localStorage.setItem(TENANT_OTP_STORAGE_KEY, JSON.stringify(next));
+    return true;
+  };
+
+  const codeExpiresAt = challenge?.codeExpiresAt ? new Date(challenge.codeExpiresAt).getTime() : 0;
+  const resendAvailableAt = challenge?.resendAvailableAt ? new Date(challenge.resendAvailableAt).getTime() : 0;
+  const codeSeconds = codeExpiresAt ? Math.max(0, Math.ceil((codeExpiresAt - now) / 1000)) : 0;
+  const resendSeconds = resendAvailableAt ? Math.max(0, Math.ceil((resendAvailableAt - now) / 1000)) : 0;
+  const requestedPhone = challenge?.phone || "";
+  const attemptsRemaining = Number(challenge?.attemptsRemaining ?? 3);
+  const locked = attemptsRemaining <= 0;
 
   const box = {
     maxWidth: 520,
@@ -151,86 +188,71 @@ function TenantLoginInline({ onLoggedIn }) {
     setErr("");
     setDevCode("");
     setOtp("");
-    setOtpId("");
-    setExpiresIn(null);
-    setRequestedPhone("");
-
-    // Try multiple formats; remember the one that succeeds
-    const tries = phoneCandidates(phone);
-    if (tries.length === 0) {
-      setErr("Enter a valid phone number");
+    const phoneValue = digitsOnly(phone).slice(-10);
+    if (!/^[6-9]\d{9}$/.test(phoneValue)) {
+      setErr("Enter a valid 10-digit mobile number.");
       return;
     }
 
     setBusy(true);
     try {
-      let success = false;
-      let lastErr;
-
-      for (const candidate of tries) {
-        try {
-          const r = await axios.post(
-            `${API}/tenant/auth/request-otp`,
-            { phone: candidate },
-            { headers: { "Content-Type": "application/json" } }
-          );
-
-          // success with this candidate
-          setRequestedPhone(candidate);
-
-          const d = r.data || {};
-          const maybeCode =
-            d.devCode ?? d.code ?? d.otp ?? d?.data?.devCode ?? d?.data?.code ?? d?.data?.otp;
-          if (maybeCode) setDevCode(String(maybeCode));
-
-          const maybeId = d.otpId ?? d.id ?? d?.data?.otpId ?? d?.data?.id;
-          if (maybeId) setOtpId(String(maybeId));
-
-          const exp = d.expiresIn ?? d.expirySeconds ?? d.ttl ?? d?.data?.expiresIn ?? d?.data?.ttl;
-          if (typeof exp === "number") setExpiresIn(exp);
-
-          success = true;
-          break;
-        } catch (e) {
-          lastErr = e;
-          // try next candidate
-        }
+      const { data } = await axios.post(`${API}/tenant/auth/request-otp`, { phone: phoneValue });
+      if (!saveChallenge(data, phoneValue)) {
+        setErr(data?.message || "If this number is registered, an OTP has been sent.");
+        return;
       }
-
-      if (!success) {
-        console.error("request-otp failed for all candidates");
-        throw lastErr || new Error("Failed to request OTP");
-      }
-
-      setStep(2);
+      if (data.devCode) setDevCode(String(data.devCode));
     } catch (e) {
-      console.error("request-otp error:", e?.response?.status, e?.response?.data || e.message);
-      setErr(e?.response?.data?.message || "Failed to request OTP");
+      const data = e?.response?.data || {};
+      if (data.otpId) saveChallenge(data, phoneValue);
+      setErr(data.message || "Failed to request OTP");
     } finally {
       setBusy(false);
     }
   }
 
-  async function verify() {
+  async function resendOtp() {
+    if (!challenge?.otpId || resendSeconds > 0) return;
     setErr("");
-    const outCode = String(otp || "").replace(/\s+/g, "");
-    if (!/^\d{4,8}$/.test(outCode)) {
-      setErr("Enter a valid OTP");
+    setDevCode("");
+    setBusy(true);
+    try {
+      const endpoint = Number(challenge.resendCount || 0) >= 2
+        ? "/tenant/auth/request-otp"
+        : "/tenant/auth/resend-otp";
+      const { data } = await axios.post(`${API}${endpoint}`, {
+        phone: challenge.phone,
+        otpId: challenge.otpId,
+      });
+      saveChallenge(data, challenge.phone);
+      if (data.devCode) setDevCode(String(data.devCode));
+    } catch (e) {
+      const data = e?.response?.data || {};
+      if (data.otpId) saveChallenge(data, challenge.phone);
+      setErr(data.message || "Unable to resend the OTP.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function verify(codeOverride) {
+    setErr("");
+    const outCode = String(codeOverride ?? otp ?? "").replace(/\s+/g, "");
+    if (!/^\d{6}$/.test(outCode)) {
+      setErr("Enter the 6-digit OTP.");
       return;
     }
-
-    const phoneForVerify = requestedPhone || (phoneCandidates(phone)[0] || "");
-
-    const payload = { phone: phoneForVerify, code: outCode };
-    if (otpId) payload.otpId = otpId; // in case backend needs it
+    if (!challenge?.otpId || locked || codeSeconds <= 0) return;
 
     setBusy(true);
     try {
-      const r = await axios.post(`${API}/tenant/auth/verify`, payload, {
-        headers: { "Content-Type": "application/json" },
+      const r = await axios.post(`${API}/tenant/auth/verify`, {
+        phone: challenge.phone,
+        otpId: challenge.otpId,
+        code: outCode,
       });
-      // setTenantToken(r.data.token);
-setToken(r.data.token);
+      localStorage.removeItem(TENANT_OTP_STORAGE_KEY);
+      setToken(r.data.token);
       // ✅ Go to /tenant/home right away
       if (onLoggedIn) {
         onLoggedIn();
@@ -239,8 +261,13 @@ setToken(r.data.token);
         window.location.assign(`${process.env.PUBLIC_URL || ""}/tenant/home`);
       }
     } catch (e) {
-      console.error("verify failed:", e?.response?.status, e?.response?.data || e.message);
-      setErr(e?.response?.data?.message || "Invalid/expired code");
+      const data = e?.response?.data || {};
+      if (data.attemptsRemaining !== undefined) {
+        const updated = { ...challenge, ...data };
+        setChallenge(updated);
+        localStorage.setItem(TENANT_OTP_STORAGE_KEY, JSON.stringify(updated));
+      }
+      setErr(data.message || "Invalid or expired OTP.");
     } finally {
       setBusy(false);
     }
@@ -249,7 +276,16 @@ setToken(r.data.token);
   const fillDevAndVerify = () => {
     if (!devCode) return;
     setOtp(String(devCode));
-    setTimeout(() => verify(), 0);
+    verify(String(devCode));
+  };
+
+  const useAnotherPhone = () => {
+    localStorage.removeItem(TENANT_OTP_STORAGE_KEY);
+    setChallenge(null);
+    setPhone("");
+    setOtp("");
+    setDevCode("");
+    setErr("");
   };
 
   return (
@@ -258,7 +294,7 @@ setToken(r.data.token);
         Tenant Login
       </h3>
 
-      {step === 1 && (
+      {!challenge && (
         <>
           <div style={label}>Phone</div>
           <input
@@ -275,26 +311,22 @@ setToken(r.data.token);
         </>
       )}
 
-      {step === 2 && (
+      {challenge && (
         <>
-          <div style={label}>
-            Enter OTP {expiresIn !== null && `• expires in ${Math.max(0, expiresIn)}s`}
-          </div>
-          <input
-            style={input}
+          <div style={label}>Enter OTP · expires in {formatOtpTimer(codeSeconds)}</div>
+          <OtpCodeInput
             value={otp}
-            onChange={(e) => setOtp(e.target.value)}
-            placeholder="Code"
-            inputMode="numeric"
-            maxLength={8}
+            onChange={setOtp}
+            autoComplete
+            disabled={busy || locked || codeSeconds <= 0}
           />
-          <button disabled={busy} style={btnSec} onClick={verify}>
+          <button disabled={busy || locked || codeSeconds <= 0} style={btnSec} onClick={() => verify()}>
             {busy ? "Verifying..." : "Verify"}
           </button>
 
           <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-            <button disabled={busy} style={btnGhost} onClick={reqOtp}>
-              Resend OTP
+            <button disabled={busy || resendSeconds > 0} style={btnGhost} onClick={resendOtp}>
+              {resendSeconds > 0 ? `Resend in ${formatOtpTimer(resendSeconds)}` : Number(challenge.resendCount || 0) >= 2 ? "Request new OTP" : "Resend OTP"}
             </button>
             {!!devCode && (
               <button disabled={busy} style={btnGhost} onClick={fillDevAndVerify}>
@@ -304,11 +336,13 @@ setToken(r.data.token);
           </div>
 
           <div style={{ marginTop: 8, fontSize: 12, color: "#64748b" }}>
-            Phone used: <b>{requestedPhone || "-"}</b>
-            {otpId && <> • otpId: <b>{otpId}</b></>}
+            Phone used: <b>{requestedPhone || "-"}</b> · Attempts remaining: <b>{attemptsRemaining}</b>
           </div>
 
           {err && <div style={{ color: "#b91c1c", marginTop: 8 }}>{err}</div>}
+          <button type="button" disabled={busy} style={{ ...btnGhost, marginTop: 8 }} onClick={useAnotherPhone}>
+            Use another number
+          </button>
         </>
       )}
     </div>
@@ -327,6 +361,7 @@ const Log = ({ superadminOnly = false }) => {
   const [loginMessage, setLoginMessage] = useState("");
   const [loginChallengeId, setLoginChallengeId] = useState("");
   const [loginCode, setLoginCode] = useState("");
+  const [loginDevCode, setLoginDevCode] = useState("");
   const [loginMaskedEmail, setLoginMaskedEmail] = useState("");
   const [loginNotice, setLoginNotice] = useState("");
   const [loginCodeSending, setLoginCodeSending] = useState(false);
@@ -342,6 +377,7 @@ const Log = ({ superadminOnly = false }) => {
     setLoginMethod(superadminOnly ? "email" : "phone");
     setLoginChallengeId("");
     setLoginCode("");
+    setLoginDevCode("");
     setLoginCodeLocked(false);
     setLoginResendAvailableAt(null);
     setLoginResendSeconds(0);
@@ -381,11 +417,13 @@ async function handleLogin(e) {
   try {
     setLoginMessage("");
     setLoginNotice("");
+    setLoginDevCode("");
 
     const data = loginMethod === "phone"
       ? await requestSaasLoginPhoneCode(`+91${loginPhone}`)
       : await requestSaasLoginEmailCode(loginEmail.trim());
     setLoginChallengeId(data.challengeId);
+    setLoginDevCode(data.devCode ? String(data.devCode) : "");
     setLoginMaskedEmail(data.phone || data.email || (loginMethod === "phone" ? "your mobile number" : "your registered email"));
     setLoginCodeLocked(false);
     setLoginResendAvailableAt(data.resendAvailableAt || null);
@@ -448,6 +486,7 @@ async function handleForgotLoginSecurityPin() {
   try {
     setLoginMessage("");
     setLoginNotice("");
+    setLoginDevCode("");
     const data = await resendSaasLoginEmailCode(loginChallengeId);
     setLoginMaskedEmail(data.email || loginMaskedEmail);
     setLoginCode("");
@@ -487,8 +526,10 @@ async function handleResendLoginCode() {
   try {
     setLoginMessage("");
     setLoginNotice("");
+    setLoginDevCode("");
       if (loginMethod === "phone") {
         const data = await resendSaasLoginPhoneCode(loginChallengeId);
+        setLoginDevCode(data.devCode ? String(data.devCode) : "");
         setLoginMaskedEmail(data.phone || loginMaskedEmail);
         setLoginResendAvailableAt(data.resendAvailableAt || null);
         setLoginCodeLocked(false);
@@ -568,12 +609,12 @@ async function handleResendLoginCode() {
                   >
                     Admin
                   </button>
-                  {/* <button
+                  <button
                     className={`btn ${role === "tenant" ? "btn-primary" : "btn-outline-primary"}`}
                     onClick={() => setRole("tenant")}
                   >
                     Tenant
-                  </button> */}
+                  </button>
                 </div>
               )}
 
@@ -641,6 +682,7 @@ async function handleResendLoginCode() {
                         <p className="text-muted">Enter the 6-digit code sent to {loginMaskedEmail}. It expires in {loginMethod === "phone" ? "5" : "10"} minutes.</p>
                         {loginMethod === "phone" && loginResendSeconds > 0 && <p className="small text-muted mb-2">You can request another OTP in {`${String(Math.floor(loginResendSeconds / 60)).padStart(2, "0")}:${String(loginResendSeconds % 60).padStart(2, "0")}`}.</p>}
                         <label>{loginMethod === "phone" ? "Mobile verification code:" : "Email verification code:"}</label>
+                        {loginMethod === "phone" && loginDevCode && <div className="alert alert-warning py-2 mt-2 mb-2" role="status">Development OTP: <strong className="ms-2 fs-5">{loginDevCode}</strong></div>}
                         <OtpCodeInput value={loginCode} onChange={setLoginCode} autoComplete disabled={loginCodeLocked} />
                       </>
                     )}
@@ -652,7 +694,7 @@ async function handleResendLoginCode() {
                     {loginNotice && <p className="text-success mt-2">{loginNotice}</p>}
                     {loginChallengeId && !loginPinStage && <div className="d-flex gap-2 mt-3">
                       <button type="button" className="btn btn-link p-0" onClick={handleResendLoginCode} disabled={loginCodeSending || (loginMethod === "phone" && loginResendSeconds > 0)}>{loginCodeSending ? "Sending..." : loginMethod === "phone" && loginResendSeconds > 0 ? `Resend OTP in ${String(Math.floor(loginResendSeconds / 60)).padStart(2, "0")}:${String(loginResendSeconds % 60).padStart(2, "0")}` : "Send a new code"}</button>
-                      <button type="button" className="btn btn-link p-0" onClick={() => { setLoginChallengeId(""); setLoginCode(""); setLoginCodeLocked(false); setLoginMessage(""); setLoginNotice(""); }}>Back to sign in</button>
+                      <button type="button" className="btn btn-link p-0" onClick={() => { setLoginChallengeId(""); setLoginCode(""); setLoginDevCode(""); setLoginCodeLocked(false); setLoginMessage(""); setLoginNotice(""); }}>Back to sign in</button>
                     </div>}
                     {loginPinStage === "verify" && <button type="button" className="btn btn-link p-0 mt-3" onClick={handleForgotLoginSecurityPin}>Forgot security PIN? Send a new OTP</button>}
                     {loginPinStage && <button type="button" className="btn btn-link p-0 mt-3" onClick={() => { setLoginChallengeId(""); setLoginCode(""); setLoginPinStage(""); setLoginSecurityPin(""); setLoginSecurityPinConfirm(""); setLoginMessage(""); setLoginNotice(""); }}>Back to sign in</button>}

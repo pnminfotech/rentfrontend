@@ -1,659 +1,240 @@
-// // src/tenant/components/TenantShell.js
-// import { useState } from "react";
-// import { NavLink, Outlet, useNavigate } from "react-router-dom";
-// import { clearToken } from "../tenantApi";
-// import { API } from "../tenantApi";
+import { useEffect, useState } from "react";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import {
+  FiBell, FiCalendar, FiCreditCard, FiFileText, FiHelpCircle,
+  FiHome, FiLogOut, FiMenu, FiUser, FiX, FiDollarSign,
+} from "react-icons/fi";
+import { clearToken, API, tenantHttp } from "../tenantApi";
+import "./TenantShell.css";
 
-// // Helper: get full URL for images if backend returns a relative path
-// function fullImg(url) {
-//   if (!url) return "";
-//   if (/^https?:\/\//i.test(url)) return url;
-//   // If backend gave '/uploads/..', prefix with API origin
-//   return `${API}${url}`;
-// }
+const navigation = [
+  { label: "Home", path: "/tenant/home", icon: FiHome },
+  { label: "Pay Rent", path: "/tenant/payments", icon: FiCreditCard },
+  { label: "Rent History", path: "/tenant/rent", icon: FiDollarSign },
+  { label: "My Documents", path: "/tenant/documents", icon: FiFileText },
+  // Announcements are temporarily hidden; restore this entry when the feature is ready.
+  // { label: "Announcements", path: "/tenant/announcements", icon: FiBell },
+  { label: "Move-out Request", path: "/tenant/leave", icon: FiCalendar },
+  { label: "Late Entry", path: "/tenant/attendance", icon: FiCalendar },
+  // Temporarily hidden; restore these entries when the features are ready.
+  // { label: "eKYC", path: "/tenant/ekyc", icon: FiUser },
+  // { label: "Police verification", path: "/tenant/police-verification", icon: FiShield },
+  { label: "Help & Support", path: "/tenant/support", icon: FiHelpCircle },
+];
 
-// export default function TenantShell({ me, onLogout }) {
-//   const nav = useNavigate();
-//   const [showAvatar, setShowAvatar] = useState(false);
-
-//   const linkStyle = (isActive) => ({
-//     display: "block",
-//     padding: "10px 12px",
-//     borderRadius: 10,
-//     textDecoration: "none",
-//     color: isActive ? "#0f172a" : "#cbd5e1",
-//     background: isActive ? "#e2e8f0" : "transparent",
-//     marginBottom: 6,
-//     fontWeight: 600,
-//     transition: "all .15s ease",
-//   });
-
-//   const sidebar = {
-//     width: 260,
-//     background: "#0f172a",
-//     color: "#fff",
-//     minHeight: "100vh",
-//     padding: 16,
-//     position: "sticky",
-//     top: 0,
-//     boxShadow: "0 10px 30px rgba(2,6,23,.25)",
-//   };
-
-//   const avatarSrc =
-//     fullImg(me?.avatarUrl) ||
-//     "https://api.dicebear.com/7.x/initials/svg?seed=" + encodeURIComponent(me?.name || "Tenant");
-
-//   const ekycStatus = me?.ekyc?.status; // "verified" | "pending" | "not_started" etc.
-//   const ekycPillColor =
-//     ekycStatus === "verified" ? "#10b981" : ekycStatus === "pending" ? "#f59e0b" : "#94a3b8";
-
-//   return (
-//     <div style={{ display: "flex", minHeight: "100vh", background: "#f8fafc" }}>
-//       {/* Sidebar */}
-//       <aside style={sidebar}>
-//         <div style={{ fontWeight: 800, fontSize: 18, marginBottom: 14, letterSpacing: 0.5 }}>
-//           Tenant Portal
-//         </div>
-
-//         {/* Profile tile */}
-//         <div
-//           style={{
-//             display: "flex",
-//             gap: 12,
-//             alignItems: "center",
-//             background: "rgba(255,255,255,.06)",
-//             padding: 10,
-//             borderRadius: 12,
-//             marginBottom: 12,
-//             cursor: "pointer",
-//           }}
-//           onClick={() => setShowAvatar(true)}
-//           title="Click to preview avatar"
-//         >
-//           <img
-//             src={avatarSrc}
-//             alt="avatar"
-//             onError={(e) => {
-//               e.currentTarget.src =
-//                 "https://api.dicebear.com/7.x/initials/svg?seed=" + encodeURIComponent(me?.name || "Tenant");
-//             }}
-//             style={{
-//               width: 46,
-//               height: 46,
-//               borderRadius: "50%",
-//               objectFit: "cover",
-//               border: "2px solid rgba(255,255,255,.15)",
-//               background: "#0b1220",
-//               flex: "0 0 auto",
-//             }}
-//           />
-//           <div style={{ minWidth: 0 }}>
-//             <div
-//               onClick={(e) => {
-//                 e.stopPropagation();
-//                 nav("/tenant/profile");
-//               }}
-//               style={{
-//                 color: "#fff",
-//                 fontWeight: 700,
-//                 whiteSpace: "nowrap",
-//                 overflow: "hidden",
-//                 textOverflow: "ellipsis",
-//                 lineHeight: 1.1,
-//               }}
-//             >
-//               {me?.name || "Tenant"}
-//             </div>
-//             <div style={{ color: "#cbd5e1", fontSize: 12 }}>
-//               {me?.roomNo ? `Room ${me.roomNo}` : ""} {me?.bedNo ? `/ Bed ${me.bedNo}` : ""}
-//             </div>
-//             {/* eKYC pill (optional) */}
-//             {ekycStatus && (
-//               <span
-//                 style={{
-//                   display: "inline-block",
-//                   marginTop: 6,
-//                   fontSize: 10,
-//                   fontWeight: 700,
-//                   padding: "4px 8px",
-//                   borderRadius: 999,
-//                   background: ekycPillColor,
-//                   color: "#0b1220",
-//                   textTransform: "capitalize",
-//                 }}
-//               >
-//                 {ekycStatus}
-//               </span>
-//             )}
-//           </div>
-//         </div>
-
-//         <nav>
-//           <NavLink to="/tenant/home"       style={({ isActive }) => linkStyle(isActive)}>Dashboard</NavLink>
-//           <NavLink to="/tenant/profile"    style={({ isActive }) => linkStyle(isActive)}>Profile</NavLink>
-//           <NavLink to="/tenant/documents"  style={({ isActive }) => linkStyle(isActive)}>Documents</NavLink>
-//           {/* ✅ Added Bills & Payments */}
-//           <NavLink to="/tenant/payments"   style={({ isActive }) => linkStyle(isActive)}>Bills & Payments</NavLink>
-//           {/* <NavLink to="/tenant/ekyc"       style={({ isActive }) => linkStyle(isActive)}>eKYC</NavLink> */}
-//           {/* ✅ NEW: Police Verification link */}
-//       <NavLink to="/tenant/police-verification" style={({ isActive }) => linkStyle(isActive)}>
-//   Police Verification
-// </NavLink>
-
-//           <NavLink to="/tenant/leave"      style={({ isActive }) => linkStyle(isActive)}>Leave Request</NavLink>
-//           <NavLink to="/tenant/support"    style={({ isActive }) => linkStyle(isActive)}>Support</NavLink>
-//         </nav>
-
-//         <button
-//           onClick={() => {
-//             clearToken();
-//             onLogout?.(); // in case it’s passed
-//             nav("/", { replace: true });
-//           }}
-//           style={{
-//             marginTop: 16,
-//             width: "100%",
-//             padding: "10px 12px",
-//             borderRadius: 10,
-//             border: "none",
-//             background: "#ef4444",
-//             color: "#fff",
-//             fontWeight: 700,
-//             cursor: "pointer",
-//             boxShadow: "0 8px 30px rgba(239,68,68,.25)",
-//           }}
-//         >
-//           Logout
-//         </button>
-//       </aside>
-
-//       {/* Main */}
-//       <main style={{ flex: 1, minWidth: 0 }}>
-//         <div
-//           style={{
-//             height: 56,
-//             borderBottom: "1px solid #e5e7eb",
-//             display: "flex",
-//             alignItems: "center",
-//             justifyContent: "space-between",
-//             padding: "0 16px",
-//             background: "#fff",
-//             position: "sticky",
-//             top: 0,
-//             zIndex: 5,
-//           }}
-//         >
-//           <div style={{ fontWeight: 700 }}>Tenant Area</div>
-//           <div style={{ fontSize: 13, color: "#64748b" }}>Hostel Manager</div>
-//         </div>
-//         <div style={{ padding: 16 }}>
-//           <Outlet />
-//         </div>
-//       </main>
-
-//       {/* Avatar Lightbox */}
-//       {showAvatar && (
-//         <div
-//           onClick={() => setShowAvatar(false)}
-//           style={{
-//             position: "fixed",
-//             inset: 0,
-//             background: "rgba(2,6,23,.75)",
-//             display: "flex",
-//             alignItems: "center",
-//             justifyContent: "center",
-//             padding: 16,
-//             zIndex: 50,
-//           }}
-//         >
-//           <div
-//             onClick={(e) => e.stopPropagation()}
-//             style={{
-//               background: "#0b1220",
-//               borderRadius: 16,
-//               padding: 16,
-//               width: "min(92vw, 520px)",
-//               boxShadow: "0 30px 80px rgba(0,0,0,.45)",
-//               color: "#e5e7eb",
-//               textAlign: "center",
-//             }}
-//           >
-//             <img
-//               src={avatarSrc}
-//               alt="avatar-large"
-//               style={{
-//                 width: "100%",
-//                 maxHeight: "60vh",
-//                 objectFit: "contain",
-//                 borderRadius: 12,
-//                 background: "#020617",
-//                 border: "1px solid rgba(255,255,255,.08)",
-//               }}
-//             />
-//             <div style={{ marginTop: 12, fontWeight: 800, fontSize: 18 }}>{me?.name || "Tenant"}</div>
-//             <div style={{ fontSize: 12, color: "#94a3b8" }}>
-//               {me?.roomNo ? `Room ${me.roomNo}` : ""} {me?.bedNo ? `/ Bed ${me.bedNo}` : ""}
-//             </div>
-//             <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 12 }}>
-//               <button
-//                 onClick={() => setShowAvatar(false)}
-//                 style={{
-//                   padding: "8px 12px",
-//                   borderRadius: 8,
-//                   border: "1px solid rgba(255,255,255,.15)",
-//                   background: "transparent",
-//                   color: "#e5e7eb",
-//                   cursor: "pointer",
-//                 }}
-//               >
-//                 Close
-//               </button>
-//               <button
-//                 onClick={() => {
-//                   setShowAvatar(false);
-//                   nav("/tenant/profile");
-//                 }}
-//                 style={{
-//                   padding: "8px 12px",
-//                   borderRadius: 8,
-//                   border: "none",
-//                   background: "#4c7cff",
-//                   color: "#fff",
-//                   fontWeight: 700,
-//                   cursor: "pointer",
-//                 }}
-//               >
-//                 View Profile
-//               </button>
-//             </div>
-//           </div>
-//         </div>
-//       )}
-//     </div>
-//   );
-// }
-
-
-
-
-// src/tenant/components/TenantShell.js
-import { useEffect, useMemo, useState } from "react";
-import { NavLink, Outlet, useNavigate, useLocation } from "react-router-dom";
-import { clearToken, API } from "../tenantApi";
-
-// Helper: get full URL for images if backend returns a relative path
-function fullImg(url) {
+function fullImageUrl(url) {
   if (!url) return "";
   if (/^https?:\/\//i.test(url)) return url;
   return `${API}${url}`;
 }
 
 export default function TenantShell({ me, onLogout }) {
-  const nav = useNavigate();
-  const loc = useLocation();
-  const [showAvatar, setShowAvatar] = useState(false);
-
-  // ── Responsive: sidebar toggle for mobile/tablet ───────────────────────
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [isDesktop, setIsDesktop] = useState(() => window.matchMedia("(min-width: 1024px)").matches);
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [paymentNotifications, setPaymentNotifications] = useState([]);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [markingAllRead, setMarkingAllRead] = useState(false);
+  const activeItem = navigation.find((item) => location.pathname === item.path) || navigation[0];
+  const avatar = fullImageUrl(me?.avatarUrl);
+  const initials = String(me?.name || "Tenant").trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
 
   useEffect(() => {
-    const mq = window.matchMedia("(min-width: 1024px)");
-    const onChange = () => setIsDesktop(mq.matches);
-    mq.addEventListener?.("change", onChange);
-    mq.addEventListener ? onChange() : setIsDesktop(mq.matches);
-    return () => mq.removeEventListener?.("change", onChange);
+    setMenuOpen(false);
+    setNotificationsOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    let active = true;
+    const loadPaymentNotifications = async () => {
+      try {
+        const { data } = await tenantHttp.get("/tenant/payments/my");
+        if (!active) return;
+        const finalReviews = (Array.isArray(data) ? data : [])
+          .filter((payment) => ["confirmed", "rejected"].includes(payment?.status) && !payment?.tenantReadAt)
+          .sort((a, b) => new Date(b.reviewedAt || b.updatedAt || b.createdAt) - new Date(a.reviewedAt || a.updatedAt || a.createdAt));
+        setPaymentNotifications(finalReviews);
+      } catch {
+        if (active) setPaymentNotifications([]);
+      }
+    };
+
+    loadPaymentNotifications();
+    const intervalId = window.setInterval(loadPaymentNotifications, 30000);
+    return () => {
+      active = false;
+      window.clearInterval(intervalId);
+    };
   }, []);
 
-  // close the drawer after navigation on small screens
   useEffect(() => {
-    if (!isDesktop) setSidebarOpen(false);
-  }, [loc.pathname, isDesktop]);
+    if (!menuOpen) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKeyDown = (event) => { if (event.key === "Escape") setMenuOpen(false); };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [menuOpen]);
 
-  // lock body scroll when drawer is open
-  useEffect(() => {
-    if (!isDesktop && sidebarOpen) {
-      const prev = document.body.style.overflow;
-      document.body.style.overflow = "hidden";
-      return () => { document.body.style.overflow = prev; };
+  const logout = () => {
+    clearToken();
+    onLogout?.();
+    navigate("/login", { replace: true });
+  };
+
+  const unreadPaymentNotifications = paymentNotifications.filter((payment) => !payment.tenantReadAt);
+  const markAllPaymentNotificationsRead = async () => {
+    if (markingAllRead || unreadPaymentNotifications.length === 0) return;
+    setMarkingAllRead(true);
+    try {
+      await tenantHttp.patch("/tenant/payments/read-all");
+      setPaymentNotifications([]);
+    } catch (error) {
+      console.error("Could not mark payment notifications as read:", error?.response?.data?.message || error.message);
+    } finally {
+      setMarkingAllRead(false);
     }
-  }, [sidebarOpen, isDesktop]);
-
-  const toggleBtn = {
-    display: isDesktop ? "none" : "inline-flex",
-    alignItems: "center",
-    gap: 8,
-    border: "1px solid #e5e7eb",
-    background: "#fff",
-    borderRadius: 8,
-    padding: "8px 10px",
-    cursor: "pointer",
   };
-
-  const linkStyle = (isActive) => ({
-    display: "block",
-    padding: "10px 12px",
-    borderRadius: 10,
-    textDecoration: "none",
-    color: isActive ? "#0f172a" : "#cbd5e1",
-    background: isActive ? "#e2e8f0" : "transparent",
-    marginBottom: 6,
-    fontWeight: 600,
-    transition: "all .15s ease",
-  });
-
-  const sidebarBase = {
-    width: 260,
-    background: "#0f172a",
-    color: "#fff",
-    minHeight: "100vh",
-    padding: 16,
-    boxShadow: "0 10px 30px rgba(2,6,23,.25)",
-  };
-
-  // desktop: static left rail; mobile/tablet: off-canvas
-  const sidebarStyle = isDesktop
-    ? {
-        ...sidebarBase,
-        position: "sticky",
-        top: 0,
-        transform: "none",
-        transition: "none",
-        zIndex: 20,
+  const openPaymentNotification = async (payment) => {
+    setNotificationsOpen(false);
+    if (!payment.tenantReadAt) {
+      try {
+        await tenantHttp.patch(`/tenant/payments/${payment._id}/read`);
+        const readAt = new Date().toISOString();
+        setPaymentNotifications((current) => current.map((item) =>
+          item._id === payment._id ? { ...item, tenantReadAt: readAt } : item
+        ).filter((item) => !item.tenantReadAt));
+      } catch {
+        // Keep the notification visible if marking it read fails.
       }
-    : {
-        ...sidebarBase,
-        position: "fixed",
-        top: 0,
-        bottom: 0,
-        left: 0,
-        transform: sidebarOpen ? "translateX(0)" : "translateX(-100%)",
-        transition: "transform .25s ease",
-        zIndex: 40,
-      };
-
-  const overlayStyle = {
-    position: "fixed",
-    inset: 0,
-    background: "rgba(2,6,23,.45)",
-    backdropFilter: "blur(2px)",
-    zIndex: 30,
+    }
+    navigate("/tenant/payments");
   };
 
-  const avatarSrc =
-    fullImg(me?.avatarUrl) ||
-    "https://api.dicebear.com/7.x/initials/svg?seed=" + encodeURIComponent(me?.name || "Tenant");
-
-  const ekycStatus = me?.ekyc?.status; // "verified" | "pending" | "not_started"
-  const ekycPillColor =
-    ekycStatus === "verified" ? "#10b981" : ekycStatus === "pending" ? "#f59e0b" : "#94a3b8";
-
-  // helper to close drawer when a nav item is clicked on mobile/tablet
-  const onNavClick = () => !isDesktop && setSidebarOpen(false);
-
-  const Header = useMemo(() => {
-    return (
-      <div
-        style={{
-          height: 56,
-          borderBottom: "1px solid #e5e7eb",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "0 16px",
-          background: "#fff",
-          position: "sticky",
-          top: 0,
-          zIndex: 10,
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {/* Hamburger (only mobile/tablet) */}
-          <button
-            aria-label="Open menu"
-            aria-controls="tenant-sidebar"
-            aria-expanded={sidebarOpen}
-            style={toggleBtn}
-            onClick={() => setSidebarOpen(true)}
-          >
-            {/* simple bars icon */}
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M4 7h16M4 12h16M4 17h16" stroke="#0f172a" strokeWidth="2" strokeLinecap="round" />
-            </svg>
-          
-          </button>
-
-          <div style={{ fontWeight: 700, marginLeft: isDesktop ? 0 : 6 }}>Tenant Area</div>
-        </div>
-        {/* <div style={{ fontSize: 13, color: "#64748b" }}>Hostel Manager</div> */}
-      </div>
-    );
-  }, [isDesktop, sidebarOpen]);
+  const paymentMonthLabel = (payment) => {
+    if (!payment?.month || !payment?.year) return "Payment report";
+    return new Date(Number(payment.year), Number(payment.month) - 1, 1)
+      .toLocaleString("en-IN", { month: "long", year: "numeric" });
+  };
 
   return (
-    <div style={{ display: "flex", minHeight: "100vh", background: "#f8fafc" }}>
-      {/* Overlay for off-canvas */}
-      {!isDesktop && sidebarOpen && <div style={overlayStyle} onClick={() => setSidebarOpen(false)} />}
+    <div className="tenant-portal">
+      {menuOpen && <button className="tenant-sidebar-overlay" aria-label="Close navigation" onClick={() => setMenuOpen(false)} />}
 
-      {/* Sidebar */}
-      <aside id="tenant-sidebar" style={sidebarStyle} aria-hidden={!isDesktop && !sidebarOpen}>
-        {/* Close (mobile/tablet only) */}
-        {!isDesktop && (
-          <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
-            <button
-              aria-label="Close menu"
-              onClick={() => setSidebarOpen(false)}
-              style={{
-                border: "1px solid rgba(255,255,255,.15)",
-                background: "transparent",
-                color: "#fff",
-                borderRadius: 8,
-                padding: "6px 8px",
-                cursor: "pointer",
-              }}
-            >
-              ✕
-            </button>
-          </div>
-        )}
-
-        <div style={{ fontWeight: 800, fontSize: 18, marginBottom: 14, letterSpacing: 0.5 }}>
-          Tenant Portal
+      <aside className={`tenant-sidebar${menuOpen ? " is-open" : ""}`} aria-label="Tenant navigation">
+        <div className="tenant-brand">
+          <span className="tenant-brand-mark"><FiHome /></span>
+          <span><strong>Rent Manager</strong><small>Tenant portal</small></span>
+          <button className="tenant-sidebar-close" aria-label="Close menu" onClick={() => setMenuOpen(false)}><FiX /></button>
         </div>
 
-        {/* Profile tile */}
-        <div
-          style={{
-            display: "flex",
-            gap: 12,
-            alignItems: "center",
-            background: "rgba(255,255,255,.06)",
-            padding: 10,
-            borderRadius: 12,
-            marginBottom: 12,
-            cursor: "pointer",
-          }}
-          onClick={() => setShowAvatar(true)}
-          title="Click to preview avatar"
-        >
-          <img
-            src={avatarSrc}
-            alt="avatar"
-            onError={(e) => {
-              e.currentTarget.src =
-                "https://api.dicebear.com/7.x/initials/svg?seed=" + encodeURIComponent(me?.name || "Tenant");
-            }}
-            style={{
-              width: 46,
-              height: 46,
-              borderRadius: "50%",
-              objectFit: "cover",
-              border: "2px solid rgba(255,255,255,.15)",
-              background: "#0b1220",
-              flex: "0 0 auto",
-            }}
-          />
-          <div style={{ minWidth: 0 }}>
-            <div
-              onClick={(e) => {
-                e.stopPropagation();
-                nav("/tenant/profile");
-                onNavClick();
-              }}
-              style={{
-                color: "#fff",
-                fontWeight: 700,
-                whiteSpace: "nowrap",
-                overflow: "hidden",
-                textOverflow: "ellipsis",
-                lineHeight: 1.1,
-              }}
-            >
-              {me?.name || "Tenant"}
-            </div>
-            <div style={{ color: "#cbd5e1", fontSize: 12 }}>
-              {me?.roomNo ? `Room ${me.roomNo}` : ""} {me?.bedNo ? `/ Bed ${me.bedNo}` : ""}
-            </div>
-            {ekycStatus && (
-              <span
-                style={{
-                  display: "inline-block",
-                  marginTop: 6,
-                  fontSize: 10,
-                  fontWeight: 700,
-                  padding: "4px 8px",
-                  borderRadius: 999,
-                  background: ekycPillColor,
-                  color: "#0b1220",
-                  textTransform: "capitalize",
-                }}
-              >
-                {ekycStatus}
-              </span>
-            )}
-          </div>
-        </div>
+        <button className="tenant-profile-tile" onClick={() => navigate("/tenant/profile")}>
+          <span className="tenant-avatar">
+            {avatar ? <img src={avatar} alt="" onError={(event) => { event.currentTarget.style.display = "none"; }} /> : null}
+            <span>{initials}</span>
+          </span>
+          <span className="tenant-profile-copy">
+            <strong>{me?.name || "Tenant"}</strong>
+            <small>{me?.roomNo ? `Room ${me.roomNo}` : me?.propertyType === "shop" ? "Commercial unit" : "Tenant account"}{me?.bedNo ? ` · Bed ${me.bedNo}` : ""}</small>
+          </span>
+          <FiUser className="tenant-profile-arrow" />
+        </button>
 
-        <nav onClick={onNavClick}>
-          <NavLink to="/tenant/home"              style={({ isActive }) => linkStyle(isActive)}>Dashboard</NavLink>
-          <NavLink to="/tenant/profile"           style={({ isActive }) => linkStyle(isActive)}>Profile</NavLink>
-          <NavLink to="/tenant/documents"         style={({ isActive }) => linkStyle(isActive)}>Documents</NavLink>
-          <NavLink to="/tenant/payments"          style={({ isActive }) => linkStyle(isActive)}>Bills & Payments</NavLink>
-          <NavLink to="/tenant/police-verification" style={({ isActive }) => linkStyle(isActive)}>Police Verification</NavLink>
-          <NavLink to="/tenant/leave"             style={({ isActive }) => linkStyle(isActive)}>Leave Request</NavLink>
-          <NavLink to="/tenant/support"           style={({ isActive }) => linkStyle(isActive)}>Support</NavLink>
+        <div className="tenant-nav-heading">MENU</div>
+        <nav className="tenant-nav">
+          {navigation.map(({ label, path, icon: Icon }) => (
+            <NavLink key={path} to={path} end={path === "/tenant/home"} className={({ isActive }) => `tenant-nav-link${isActive ? " is-active" : ""}`}>
+              <Icon aria-hidden="true" /><span>{label}</span>
+            </NavLink>
+          ))}
         </nav>
 
-
-        <button
-          onClick={() => {
-            clearToken();
-            onLogout?.();
-            nav("/", { replace: true });
-          }}
-          style={{
-            marginTop: 16,
-            width: "100%",
-            padding: "10px 12px",
-            borderRadius: 10,
-            border: "none",
-            background: "#ef4444",
-            color: "#fff",
-            fontWeight: 700,
-            cursor: "pointer",
-            boxShadow: "0 8px 30px rgba(239,68,68,.25)",
-          }}
-        >
-          Logout
-        </button>
+        <div className="tenant-sidebar-footer">
+          <div className="tenant-help-card"><span className="tenant-help-icon"><FiHelpCircle /></span><span><strong>Need assistance?</strong><small>Our team can help you.</small></span><button aria-label="Open support" onClick={() => navigate("/tenant/support")}>›</button></div>
+          <button className="tenant-logout" onClick={logout}><FiLogOut /><span>Sign out</span></button>
+          <small className="tenant-sidebar-version">Secure tenant access</small>
+        </div>
       </aside>
 
-      {/* Main */}
-      <main style={{ flex: 1, minWidth: 0 }}>
-        {Header}
-        <div style={{ padding: 16 }}>
-          <Outlet />
-        </div>
-      </main>
-
-      {/* Avatar Lightbox */}
-      {showAvatar && (
-        <div
-          onClick={() => setShowAvatar(false)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(2,6,23,.75)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 16,
-            zIndex: 50,
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              background: "#0b1220",
-              borderRadius: 16,
-              padding: 16,
-              width: "min(92vw, 520px)",
-              boxShadow: "0 30px 80px rgba(0,0,0,.45)",
-              color: "#e5e7eb",
-              textAlign: "center",
-            }}
-          >
-            <img
-              src={avatarSrc}
-              alt="avatar-large"
-              style={{
-                width: "100%",
-                maxHeight: "60vh",
-                objectFit: "contain",
-                borderRadius: 12,
-                background: "#020617",
-                border: "1px solid rgba(255,255,255,.08)",
-              }}
-            />
-            <div style={{ marginTop: 12, fontWeight: 800, fontSize: 18 }}>{me?.name || "Tenant"}</div>
-            <div style={{ fontSize: 12, color: "#94a3b8" }}>
-              {me?.roomNo ? `Room ${me.roomNo}` : ""} {me?.bedNo ? `/ Bed ${me.bedNo}` : ""}
-            </div>
-            <div style={{ display: "flex", gap: 8, justifyContent: "center", marginTop: 12 }}>
-              <button
-                onClick={() => setShowAvatar(false)}
-                style={{
-                  padding: "8px 12px",
-                  borderRadius: 8,
-                  border: "1px solid rgba(255,255,255,.15)",
-                  background: "transparent",
-                  color: "#e5e7eb",
-                  cursor: "pointer",
-                }}
-              >
-                Close
-              </button>
-              <button
-                onClick={() => {
-                  setShowAvatar(false);
-                  nav("/tenant/profile");
-                }}
-                style={{
-                  padding: "8px 12px",
-                  borderRadius: 8,
-                  border: "none",
-                  background: "#4c7cff",
-                  color: "#fff",
-                  fontWeight: 700,
-                  cursor: "pointer",
-                }}
-              >
-                View Profile
-              </button>
-            </div>
+      <main className="tenant-main">
+        <header className="tenant-topbar">
+          <button className="tenant-menu-trigger" aria-label="Open navigation" aria-expanded={menuOpen} onClick={() => setMenuOpen(true)}><FiMenu /></button>
+          <div className="tenant-page-heading"><span>Tenant portal</span><strong>{activeItem.label}</strong></div>
+          <div className="tenant-notifications-wrap">
+            <button
+              type="button"
+              className="tenant-notification-trigger"
+              aria-label={`Payment notifications${unreadPaymentNotifications.length ? `, ${unreadPaymentNotifications.length} unread` : ""}`}
+              aria-expanded={notificationsOpen}
+              onClick={() => setNotificationsOpen((open) => !open)}
+            >
+              <FiBell />
+              {unreadPaymentNotifications.length > 0 && (
+                <span className="tenant-notification-count">
+                  {unreadPaymentNotifications.length > 9 ? "9+" : unreadPaymentNotifications.length}
+                </span>
+              )}
+            </button>
+            {notificationsOpen && (
+              <section className="tenant-notifications-menu" aria-label="Payment notifications">
+                <div className="tenant-notifications-menu-header">
+                  <strong>Payment updates</strong>
+                  <div className="tenant-notifications-header-actions">
+                    {unreadPaymentNotifications.length > 0 && <span>{unreadPaymentNotifications.length} new</span>}
+                    <button
+                      type="button"
+                      className="tenant-notifications-read-all"
+                      onClick={markAllPaymentNotificationsRead}
+                      disabled={markingAllRead || unreadPaymentNotifications.length === 0}
+                    >
+                      {markingAllRead ? "Marking…" : "Read all"}
+                    </button>
+                  </div>
+                </div>
+                {paymentNotifications.length ? (
+                  <div className="tenant-notifications-list">
+                    {paymentNotifications.slice(0, 8).map((payment) => {
+                      const rejected = payment.status === "rejected";
+                      const message = payment.reviewMessage || (rejected
+                        ? "Your payment report was rejected. Review the details and submit it again."
+                        : "Your payment report was approved.");
+                      return (
+                        <button
+                          type="button"
+                          key={payment._id}
+                          className={`tenant-payment-notification${payment.tenantReadAt ? " is-read" : " is-unread"}${rejected ? " is-rejected" : " is-approved"}`}
+                          onClick={() => openPaymentNotification(payment)}
+                        >
+                          <span className="tenant-payment-notification-status">{rejected ? "Rejected" : "Approved"}</span>
+                          <strong>{paymentMonthLabel(payment)} · ₹{Number(payment.amount || 0).toLocaleString("en-IN")}</strong>
+                          <span>{message}</span>
+                          <small>{new Date(payment.reviewedAt || payment.updatedAt || payment.createdAt).toLocaleString("en-IN")}</small>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="tenant-notifications-empty">No payment updates yet.</p>
+                )}
+                <button
+                  type="button"
+                  className="tenant-notifications-view-all"
+                  onClick={() => { setNotificationsOpen(false); navigate("/tenant/payments"); }}
+                >
+                  View payment reports
+                </button>
+              </section>
+            )}
           </div>
-        </div>
-      )}
+          <button className="tenant-topbar-user" onClick={() => navigate("/tenant/profile")} aria-label="Open profile">
+            <span className="tenant-topbar-avatar">{initials}</span><span><strong>{me?.name || "Tenant"}</strong><small>My account</small></span><FiUser />
+          </button>
+        </header>
+        <div className="tenant-content"><Outlet /></div>
+      </main>
     </div>
   );
 }

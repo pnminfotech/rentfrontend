@@ -609,20 +609,18 @@ export default function TenantLeave() {
   };
 
   const rules = [
-    "Select a leaving date and add a reason. The admin will approve or reject your request.",
-    "Leave request must be submitted at least 30 days in advance.",
-    "If a tenant leaves without proper notice, a penalty fee may apply.",
-    "Leave request must be approved by admin before tenant can officially leave.",
+    "Choose a leaving date at least 30 days ahead.",
+    "Your move-out date is confirmed after the owner approves your request.",
   ];
 
   return (
     <div style={container}>
       <div style={card}>
-        <h2 style={{ marginBottom: 12 }}>Leave Request</h2>
+        <h2 style={{ marginBottom: 12 }}>Move-out request</h2>
 
         {/* Rules (left aligned) */}
         <div style={rulesBox}>
-          <div style={rulesTitle}>Before you submit</div>
+          <div style={rulesTitle}>Please note</div>
           <ul style={rulesList}>
             {rules.map((r, i) => <li key={i}>{r}</li>)}
           </ul>
@@ -630,7 +628,7 @@ export default function TenantLeave() {
 
         {/* Request form */}
         <form onSubmit={submit} style={{ display: "grid", gap: 12, maxWidth: "100%" }}>
-          <label style={label}>Leaving Date</label>
+          <label style={label}>Move-out date</label>
           <div style={{ position: "relative" }}>
             <input
               type="date"
@@ -656,13 +654,13 @@ export default function TenantLeave() {
           {errorMsg && <div style={errorStyle}>{errorMsg}</div>}
 
           <button type="submit" disabled={submitting} style={btnPrimary}>
-            {submitting ? "Submitting..." : "Submit Leave Request"}
+            {submitting ? "Sending..." : "Send move-out request"}
           </button>
         </form>
 
         {/* History table */}
         <div style={{ marginTop: 28 }}>
-          <h3 style={{ fontSize: 18, marginBottom: 12, textAlign: "left" }}>Leave History</h3>
+          <h3 style={{ fontSize: 18, marginBottom: 12, textAlign: "left" }}>Previous requests</h3>
 
           <div style={tableWrap}>
             <table style={table}>

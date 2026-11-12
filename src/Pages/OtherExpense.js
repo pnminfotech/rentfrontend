@@ -17,6 +17,9 @@ const OtherExpense = ({ embedded = false, propertyScope = null }) => {
   const scopedRoomNos = (propertyScope?.roomNos || []).map((roomNo) => String(roomNo));
   const scopedOptionLabels = propertyScope?.optionLabels || {};
   const scopedRoomTypeMap = propertyScope?.roomTypeMap || {};
+  const scopedBuildingNames = Array.from(
+    new Set((propertyScope?.categories || []).map((name) => String(name || "").trim()).filter(Boolean))
+  );
   const scopedRoomNosByType = {
     bed: new Set((propertyScope?.roomNosByType?.bed || []).map((roomNo) => String(roomNo).trim())),
     room: new Set((propertyScope?.roomNosByType?.room || []).map((roomNo) => String(roomNo).trim())),
@@ -92,6 +95,7 @@ const OtherExpense = ({ embedded = false, propertyScope = null }) => {
   // New entry
   const [newEntry, setNewEntry] = useState({
     roomNo: "",
+    scopeName: "",
     mainAmount: "",
     expenses: [""],
     date: "",
@@ -139,8 +143,7 @@ const OtherExpense = ({ embedded = false, propertyScope = null }) => {
 
   const fetchExpenses = async () => {
     try {
-      const res = await fetch("   https://rentmobile-api.pnminfotech.com/api/other-expense/all");
-      const data = await res.json();
+      const { data } = await api.get("/other-expense/all");
       setOtherExpenses(
         Array.isArray(data)
           ? data.map((item) => ({
@@ -175,35 +178,41 @@ const OtherExpense = ({ embedded = false, propertyScope = null }) => {
       if (shouldSelectUnit && !String(newEntry.roomNo || "").trim()) {
         return alert(`Select ${scopeUnitLabel}`);
       }
+      const isHostelExpense = !["room", "shop", "mixed"].includes(scopeType);
       const propertyType =
         scopeType === "mixed"
           ? String(scopedRoomTypeMap[String(newEntry.roomNo || "").trim()] || "").trim().toLowerCase()
-          : scopeType;
+          : scopeType || "bed";
       if ((scopeType === "mixed" || scopeType === "room" || scopeType === "shop") && !propertyType) {
         return alert("Select a valid room or shop");
+      }
+      const requestedScopeName = String(newEntry.scopeName || "").trim();
+      const scopeName = scopedBuildingNames.includes(requestedScopeName)
+        ? requestedScopeName
+        : scopedBuildingNames.length === 1
+        ? scopedBuildingNames[0]
+        : "";
+      if (isHostelExpense && scopedBuildingNames.length > 1 && !scopeName) {
+        return alert("Select hostel/building name");
       }
       const payload = {
         roomNo: shouldSelectUnit ? newEntry.roomNo : "",
         propertyType,
+        scopeName: isHostelExpense ? (scopeName || "Hostel") : undefined,
         mainAmount: newEntry.mainAmount,
         expenses: newEntry.expenses.filter((e) => e.trim() !== ""),
         date: newEntry.date,
         status: newEntry.status,
       };
 
-      const res = await fetch("   https://rentmobile-api.pnminfotech.com/api/other-expense", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      if (!res.ok) throw new Error("Failed");
+      await api.post("/other-expense", payload);
 
       alert("Expense Added!");
       setShowAddModal(false);
 
       setNewEntry({
         roomNo: "",
+        scopeName: "",
         mainAmount: "",
         expenses: [""],
         date: "",
@@ -212,7 +221,7 @@ const OtherExpense = ({ embedded = false, propertyScope = null }) => {
 
       fetchExpenses();
     } catch (err) {
-      alert(err.message);
+      alert(err.response?.data?.message || err.response?.data?.error || err.message);
     }
   };
 
@@ -249,22 +258,13 @@ const OtherExpense = ({ embedded = false, propertyScope = null }) => {
         status: updatedStatus,
       };
 
-      const res = await fetch(
-        `   https://rentmobile-api.pnminfotech.com/api/other-expense/${selectedExpense._id}`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        }
-      );
-
-      if (!res.ok) throw new Error("Update failed");
+      await api.put(`/other-expense/${selectedExpense._id}`, payload);
 
       alert("Updated Successfully!");
       setShowEditModal(false);
       fetchExpenses();
     } catch (err) {
-      alert(err.message);
+      alert(err.response?.data?.message || err.response?.data?.error || err.message);
     }
   };
 
@@ -545,6 +545,22 @@ const OtherExpense = ({ embedded = false, propertyScope = null }) => {
                   </div>
 
                   <div className="modal-body">
+                    {scopeType === "bed" && scopedBuildingNames.length > 0 && (
+                      <>
+                        <label>Hostel / Building</label>
+                        <select
+                          className="form-select mb-2"
+                          value={newEntry.scopeName || (scopedBuildingNames.length === 1 ? scopedBuildingNames[0] : "")}
+                          disabled={scopedBuildingNames.length === 1}
+                          onChange={(e) => setNewEntry({ ...newEntry, scopeName: e.target.value })}
+                        >
+                          <option value="">Select hostel / building</option>
+                          {scopedBuildingNames.map((name) => (
+                            <option key={name} value={name}>{name}</option>
+                          ))}
+                        </select>
+                      </>
+                    )}
                     {shouldSelectUnit && (
                       <>
                         <label>{scopeUnitLabel} No</label>
@@ -781,7 +797,7 @@ const OtherExpense = ({ embedded = false, propertyScope = null }) => {
   }
 
   return (
-    <div className={`p-2 ${embedded ? "" : "container-fluid"}`}>
+    <div className={`other-expense-desktop-view p-2 ${embedded ? "" : "container-fluid"}`}>
 
 <div className="d-flex align-items-center justify-content-between gap-2 mb-3">
   {embedded ? (
@@ -951,7 +967,7 @@ const OtherExpense = ({ embedded = false, propertyScope = null }) => {
       )}
 
       {/* TABLE */}
-    <div className="table-responsive mt-3">
+    <div className={`table-responsive other-expense-table-scroll mt-3${shouldSelectUnit ? " has-unit-column" : ""}`}>
   <div className="light-table-wrapper">
     <table className="table light-bill-table align-middle">
 
@@ -1032,6 +1048,22 @@ const OtherExpense = ({ embedded = false, propertyScope = null }) => {
               </div>
 
               <div className="modal-body">
+                {scopeType === "bed" && scopedBuildingNames.length > 0 && (
+                  <>
+                    <label>Hostel / Building</label>
+                    <select
+                      className="form-select mb-2"
+                      value={newEntry.scopeName || (scopedBuildingNames.length === 1 ? scopedBuildingNames[0] : "")}
+                      disabled={scopedBuildingNames.length === 1}
+                      onChange={(e) => setNewEntry({ ...newEntry, scopeName: e.target.value })}
+                    >
+                      <option value="">Select hostel / building</option>
+                      {scopedBuildingNames.map((name) => (
+                        <option key={name} value={name}>{name}</option>
+                      ))}
+                    </select>
+                  </>
+                )}
                 {shouldSelectUnit && (
                   <>
                     <label>{scopeUnitLabel} No</label>

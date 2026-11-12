@@ -1,0 +1,449 @@
+.pvr-root {
+  color: #191919;
+}
+
+.pvr-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  font-size: 14px;
+}
+
+.pvr-toolbar > div {
+  display: grid;
+  gap: 2px;
+}
+
+.pvr-toolbar > div span {
+  color: #697386;
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.pvr-toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* A detached A4-sized copy is used for PDF export so modal scroll/overflow
+   cannot crop the rendered pages. */
+.pvr-pdf-export-host {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 1039;
+  width: 210mm;
+  background: #fff;
+  pointer-events: none;
+}
+
+.pvr-pdf-export-host .pvr-print-root {
+  display: block;
+  width: 210mm;
+  padding: 0;
+  background: #fff;
+}
+
+.pvr-pdf-export-host .pvr-page {
+  width: 210mm;
+  height: 297mm;
+  min-height: 297mm;
+  margin: 0;
+  padding: 11mm 12mm 10mm;
+  overflow: hidden;
+  border: 0;
+  box-shadow: none;
+}
+
+.pvr-print-root {
+  display: grid;
+  justify-items: center;
+  gap: 18px;
+  padding: 16px;
+  background: #e8ebef;
+}
+
+.pvr-page {
+  width: min(100%, 210mm);
+  min-height: 297mm;
+  box-sizing: border-box;
+  padding: 13mm 12mm 10mm;
+  position: relative;
+  background: #fff;
+  border: 1px solid #b9bec6;
+  box-shadow: 0 4px 16px rgba(20, 28, 40, .15);
+  font-family: Arial, "Noto Sans Devanagari", sans-serif;
+}
+
+.pvr-heading {
+  text-align: center;
+  margin-bottom: 10px;
+}
+
+.pvr-form-caption {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.pvr-form-caption span {
+  display: block;
+  margin-top: 2px;
+  font-size: 10px;
+  letter-spacing: .12em;
+}
+
+.pvr-heading h1 {
+  margin: 8px 0 1px;
+  font-size: 23px;
+  font-weight: 700;
+}
+
+.pvr-heading h2 {
+  margin: 0 0 10px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .08em;
+}
+
+.pvr-station-row {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 7px 2px;
+  border-bottom: 1px solid #222;
+  text-align: left;
+  font-size: 10px;
+}
+
+.pvr-photo-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin: 12px 0 14px;
+  padding: 0 7%;
+}
+
+.pvr-photo-box {
+  width: 37mm;
+  height: 47mm;
+  flex: 0 0 37mm;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px solid #333;
+  border-radius: 12px;
+  text-align: center;
+  font-size: 10px;
+  line-height: 1.65;
+}
+
+.pvr-photo-box img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.pvr-table {
+  width: 100%;
+  border: 1px solid #292929;
+}
+
+.pvr-row {
+  display: grid;
+  grid-template-columns: 7% 35% minmax(0, 58%);
+  min-height: 17mm;
+  border-bottom: 1px solid #373737;
+  break-inside: avoid;
+}
+
+.pvr-row:last-child {
+  border-bottom: 0;
+}
+
+.pvr-row-number,
+.pvr-row-label,
+.pvr-row-value {
+  min-width: 0;
+  box-sizing: border-box;
+  padding: 9px 8px;
+}
+
+.pvr-row-number,
+.pvr-row-label {
+  border-right: 1px solid #373737;
+}
+
+.pvr-row-number {
+  display: flex;
+  justify-content: center;
+  padding-left: 3px;
+  padding-right: 3px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.pvr-row-label {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.pvr-row-label span {
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.pvr-row-value {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+  font-size: 11px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.pvr-id-lines {
+  margin-top: 4px;
+  padding-top: 5px;
+  border-top: 1px dotted #888;
+  font-size: 10px;
+}
+
+.pvr-family-counts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border: 1px solid #555;
+}
+
+.pvr-family-counts span {
+  display: grid;
+  justify-items: center;
+  gap: 7px;
+  min-height: 17mm;
+  padding: 7px 4px;
+  border-right: 1px solid #555;
+  text-align: center;
+}
+
+.pvr-family-counts span:last-child {
+  border-right: 0;
+}
+
+.pvr-family-counts b {
+  font-size: 9px;
+}
+
+.pvr-family-total {
+  padding-top: 5px;
+  text-align: right;
+  font-weight: 700;
+}
+
+.pvr-family-list {
+  padding-top: 5px;
+  border-top: 1px dotted #888;
+  font-size: 9px;
+}
+
+.pvr-reference + .pvr-reference {
+  padding-top: 7px;
+  border-top: 1px dotted #888;
+}
+
+.pvr-admission-details {
+  margin-top: 5mm;
+  break-inside: avoid;
+}
+
+.pvr-admission-details h3 {
+  margin: 0;
+  padding: 6px 8px;
+  border: 1px solid #333;
+  border-bottom: 0;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.pvr-admission-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-top: 1px solid #333;
+  border-left: 1px solid #333;
+}
+
+.pvr-admission-grid > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 6px 8px;
+  border-right: 1px solid #333;
+  border-bottom: 1px solid #333;
+  font-size: 9px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.pvr-signatures {
+  display: flex;
+  justify-content: space-between;
+  gap: 30px;
+  margin: 6mm 4mm 5mm;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.7;
+}
+
+.pvr-signatures span {
+  font-size: 10px;
+  font-weight: 400;
+}
+
+.pvr-signatures i {
+  display: block;
+  width: 56mm;
+  max-width: 100%;
+  margin: 7mm auto 0;
+  border-top: 1px solid #333;
+}
+
+.pvr-declaration,
+.pvr-note {
+  margin-top: 4mm;
+  font-size: 10px;
+  line-height: 1.65;
+}
+
+.pvr-note {
+  padding-top: 5px;
+  border-top: 1px dotted #777;
+  font-style: italic;
+}
+
+.pvr-page-footer {
+  position: absolute;
+  right: 12mm;
+  bottom: 5mm;
+  left: 12mm;
+  padding-top: 3px;
+  border-top: 1px solid #aaa;
+  color: #666;
+  font-size: 8px;
+  text-align: center;
+}
+
+@media (max-width: 767.98px) {
+  .pvr-print-root {
+    padding: 8px;
+  }
+
+  .pvr-page {
+    min-height: 0;
+    padding: 18px 12px 36px;
+  }
+
+  .pvr-row {
+    grid-template-columns: 8% 38% minmax(0, 54%);
+  }
+
+  .pvr-row-number,
+  .pvr-row-label,
+  .pvr-row-value {
+    padding: 7px 5px;
+  }
+
+  .pvr-row-label,
+  .pvr-row-value {
+    font-size: 10px;
+  }
+
+  .pvr-station-row {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+@media print {
+  @page { size: A4 portrait; margin: 0; }
+
+  html,
+  body {
+    width: 210mm !important;
+    min-width: 0 !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+
+  body * { visibility: hidden !important; }
+  body:has(.pvr-print-root) .modal-backdrop { display: none !important; }
+  body:has(.pvr-print-root) .modal,
+  body:has(.pvr-print-root) .modal-dialog,
+  body:has(.pvr-print-root) .modal-content,
+  body:has(.pvr-print-root) .modal-body {
+    position: static !important;
+    display: block !important;
+    width: 210mm !important;
+    max-width: none !important;
+    height: auto !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    transform: none !important;
+    background: #fff !important;
+  }
+  .pvr-root,
+  .pvr-print-root,
+  .pvr-print-root * { visibility: visible !important; }
+  .pvr-root,
+  .pvr-print-root {
+    position: static !important;
+    display: block !important;
+    width: 210mm !important;
+    max-width: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #fff !important;
+  }
+  .pvr-toolbar { display: none !important; }
+  .pvr-page {
+    box-sizing: border-box !important;
+    width: 210mm !important;
+    height: 297mm !important;
+    min-height: 297mm !important;
+    margin: 0 !important;
+    padding: 11mm 12mm 10mm !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    overflow: hidden !important;
+    break-after: page;
+    page-break-after: always;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+  .pvr-page:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+}

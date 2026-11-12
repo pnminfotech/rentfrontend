@@ -1,0 +1,255 @@
+.tenant-profile-page {
+  min-height: calc(100vh - 72px) !important;
+  padding: 22px 20px 36px !important;
+  background:
+    radial-gradient(ellipse at 82% 0%, rgba(218, 222, 255, .55), transparent 34%),
+    #f3f4fc !important;
+  color: #122a60 !important;
+}
+
+.tenant-profile-container {
+  display: grid;
+  width: 100%;
+  max-width: 1480px !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin: 0 auto !important;
+}
+
+.tenant-profile-page-heading,
+.tenant-profile-banner,
+.tenant-profile-summary {
+  grid-column: 1 / -1;
+}
+
+.tenant-profile-message,
+.tenant-profile-toast { grid-column: 1 / -1; }
+
+.tenant-profile-page-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 2px 4px 3px;
+}
+
+.tenant-profile-page-heading > div:first-child > span {
+  color: #5d77bd;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .14em;
+}
+
+.tenant-profile-page-heading h1 {
+  margin: 3px 0 0;
+  color: #10295f;
+  font-size: clamp(27px, 3vw, 38px);
+  font-weight: 800;
+  letter-spacing: -.035em;
+}
+
+.tenant-profile-page-heading p {
+  margin: 1px 0 0;
+  color: #65769c;
+  font-size: 13px;
+}
+
+.tenant-profile-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 5px;
+  color: #6b7ca1;
+  font-size: 12px;
+}
+
+.tenant-profile-breadcrumb b { color: #a0adca; font-size: 17px; font-weight: 500; }
+.tenant-profile-breadcrumb strong { color: #294b96; font-weight: 700; }
+
+.tenant-profile-page .tenant-profile-banner {
+  position: relative;
+  min-height: 112px;
+  margin: 0 !important;
+  padding: 20px 24px !important;
+  border: 1px solid #d6e1ff !important;
+  border-radius: 18px !important;
+  background: linear-gradient(110deg, #fff 0%, #f8fbff 65%, #eaf2ff 100%) !important;
+  box-shadow: 0 8px 22px rgba(30, 60, 130, .07) !important;
+}
+
+.tenant-profile-page .tenant-profile-banner::after {
+  position: absolute;
+  right: 25px;
+  bottom: 0;
+  width: 150px;
+  height: 75px;
+  border-radius: 100% 100% 0 0;
+  background: rgba(73, 126, 244, .06);
+  content: "";
+  pointer-events: none;
+}
+
+.tenant-profile-page .tenant-profile-banner .tenant-profile-heading-wrap { min-width: 0; }
+.tenant-profile-avatar {
+  position: relative;
+  display: grid;
+  flex: 0 0 62px;
+  width: 62px;
+  height: 62px;
+  place-items: center;
+  border: 1px solid #d9e5ff;
+  border-radius: 50%;
+  color: #2454b6;
+  background: linear-gradient(145deg, #e7f1ff, #d7e7ff);
+  font-size: 21px;
+  font-weight: 800;
+}
+.tenant-profile-avatar img { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: inherit; object-fit: cover; }
+.tenant-profile-page .tenant-profile-banner h2 { color: #10295f !important; font-size: 22px !important; font-weight: 800 !important; }
+.tenant-profile-page .tenant-profile-banner .tenant-profile-sub { color: #65769c !important; }
+.tenant-profile-page .tenant-profile-banner .tenant-profile-chip { border-color: #dce6fa !important; color: #24468e !important; background: #f6f9ff !important; }
+.tenant-profile-toolbar { display: flex; flex: 0 0 auto; align-items: center; gap: 8px; }
+.tenant-profile-toolbar button { min-height: 38px; padding: 8px 13px; border: 1px solid #cbd8f5; border-radius: 10px; color: #234797; background: #fff; font: inherit; font-size: 12px; font-weight: 750; cursor: pointer; }
+.tenant-profile-toolbar .tenant-profile-save { border-color: #244bc3; color: #fff; background: #244bc3; }
+.tenant-profile-toolbar button:disabled { cursor: wait; opacity: .65; }
+.tenant-profile-input { width: 100%; min-height: 40px; padding: 9px 11px; border: 1px solid #cbd8f5; border-radius: 10px; color: #172f68; background: #fff; font: inherit; font-size: 14px; }
+.tenant-profile-input:focus { border-color: #5574df; outline: 3px solid rgba(85,116,223,.14); }
+.tenant-profile-success { grid-column: 1 / -1; padding: 11px 14px; border: 1px solid #bfe8d2; border-radius: 11px; color: #12663c; background: #effbf4; font-size: 13px; font-weight: 650; }
+
+.tenant-profile-summary {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.tenant-profile-summary-card {
+  display: flex;
+  min-width: 0;
+  min-height: 82px;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  padding: 12px 15px;
+  border: 1px solid rgba(255,255,255,.9);
+  border-radius: 15px;
+  box-shadow: 0 6px 16px rgba(35, 54, 110, .08);
+}
+.tenant-profile-summary-docs { color: #18356f; text-align: left; cursor: pointer; transition: transform .16s ease, box-shadow .16s ease; }
+.tenant-profile-summary-docs:hover { transform: translateY(-2px); box-shadow: 0 10px 22px rgba(35, 54, 110, .13); }
+.tenant-profile-summary-docs { font-family: inherit; }
+.tenant-profile-docs-label { display: flex; align-items: center; gap: 7px; }
+.tenant-profile-docs-label svg { width: 15px; height: 15px; color: #315bd3; }
+
+.tenant-profile-summary-card span { color: #24416f; font-size: 11px; font-weight: 700; }
+.tenant-profile-summary-card strong { overflow: hidden; color: #10295f; font-size: 20px; font-weight: 800; text-overflow: ellipsis; white-space: nowrap; }
+.tenant-profile-summary-card small { overflow: hidden; color: #5f739b; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.tenant-profile-summary-unit { background: #dceaff; }
+.tenant-profile-summary-rent { background: #ffebcb; }
+.tenant-profile-summary-deposit { background: #d9f3e8; }
+.tenant-profile-summary-date { background: #e8e2ff; }
+.tenant-profile-summary-docs { background: #dce8ff; }
+
+.tenant-profile-page .tenant-profile-card {
+  min-width: 0;
+  margin: 0 !important;
+  padding: 18px !important;
+  border: 1px solid #dce4fa !important;
+  border-radius: 16px !important;
+  background: #fff !important;
+  box-shadow: 0 7px 20px rgba(31, 52, 110, .06) !important;
+}
+
+.tenant-profile-page .tenant-profile-card > div:first-child:not([style*="grid"]) {
+  color: #142e67;
+  font-size: 16px !important;
+  font-weight: 800 !important;
+}
+
+.tenant-profile-page .tenant-profile-card [style*="grid-template-columns"] { gap: 10px !important; }
+.tenant-profile-page .tenant-profile-value {
+  width: auto !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  color: #172f68 !important;
+  background: transparent !important;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.tenant-profile-page .tenant-profile-card input,
+.tenant-profile-page .tenant-profile-card textarea,
+.tenant-profile-page .tenant-profile-card select { border-color: #d6e0f2 !important; border-radius: 10px !important; }
+.tenant-profile-page .tenant-profile-card button { border-radius: 10px !important; }
+.tenant-profile-page .tenant-profile-card img { object-fit: cover; }
+
+.tenant-profile-documents-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1100;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(17, 31, 67, .58);
+  backdrop-filter: blur(5px);
+}
+.tenant-profile-documents-modal {
+  display: flex;
+  width: min(860px, 100%);
+  max-height: min(88vh, 900px);
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid #dbe4fa;
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: 0 24px 70px rgba(8, 24, 61, .28);
+}
+.tenant-profile-documents-modal-header { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 18px 22px; border-bottom: 1px solid #e6ebf6; background: #f8f9ff; }
+.tenant-profile-documents-modal-header span { color: #6177af; font-size: 10px; font-weight: 800; letter-spacing: .14em; }
+.tenant-profile-documents-modal-header h2 { margin: 3px 0; color: #142e67; font-size: 20px; font-weight: 800; }
+.tenant-profile-documents-modal-header p { margin: 0; color: #7180a0; font-size: 12px; }
+.tenant-profile-documents-modal-header > button { display: grid; flex: 0 0 38px; width: 38px; height: 38px; place-items: center; border: 1px solid #d5def1; border-radius: 11px; color: #24427f; background: #fff; font-size: 25px; line-height: 1; cursor: pointer; }
+.tenant-profile-documents-modal-body { overflow: auto; padding: 18px 22px 22px; }
+.tenant-profile-documents-modal-body .tdocs-container { font-family: inherit; }
+.tenant-profile-documents-modal-body .tdocs-container > h5 { color: #17336f; font-size: 14px; font-weight: 750; }
+.tenant-profile-documents-modal-body .tdocs-container .drop-area { border-color: #cbd8f5 !important; border-radius: 12px !important; color: #48628f; background: #f7f9ff !important; }
+
+@media (max-width: 900px) {
+  .tenant-profile-container { grid-template-columns: minmax(0, 1fr); }
+  .tenant-profile-page-heading,
+  .tenant-profile-banner,
+  .tenant-profile-summary,
+  .tenant-profile-container > .tenant-profile-card { grid-column: 1; }
+  .tenant-profile-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (max-width: 560px) {
+  .tenant-profile-page { min-height: calc(100vh - 64px) !important; padding: 14px 12px 26px !important; }
+  .tenant-profile-container { gap: 10px; }
+  .tenant-profile-page-heading { align-items: start; padding: 0 2px 3px; }
+  .tenant-profile-page-heading h1 { font-size: 28px; }
+  .tenant-profile-page-heading p { max-width: 240px; font-size: 11px; }
+  .tenant-profile-breadcrumb { gap: 6px; padding-top: 18px; font-size: 10px; white-space: nowrap; }
+  .tenant-profile-page .tenant-profile-banner { min-height: 0; align-items: flex-start !important; gap: 10px !important; padding: 16px !important; }
+  .tenant-profile-page .tenant-profile-banner.is-editing { flex-wrap: wrap; }
+  .tenant-profile-banner.is-editing .tenant-profile-heading-wrap { flex: 1 1 calc(100% - 70px); }
+  .tenant-profile-banner.is-editing .tenant-profile-toolbar { width: 100%; justify-content: flex-end; }
+  .tenant-profile-avatar { flex-basis: 48px; width: 48px; height: 48px; font-size: 16px; }
+  .tenant-profile-page .tenant-profile-banner h2 { font-size: 19px !important; }
+  .tenant-profile-page .tenant-profile-banner .tenant-profile-toolbar { flex-shrink: 0; }
+  .tenant-profile-page .tenant-profile-banner button { padding: 8px 10px !important; font-size: 12px; }
+  .tenant-profile-summary { gap: 8px; }
+  .tenant-profile-summary-card { min-height: 72px; padding: 10px 11px; border-radius: 12px; }
+  .tenant-profile-summary-card strong { font-size: 17px; }
+  .tenant-profile-page .tenant-profile-card { padding: 14px !important; border-radius: 13px !important; }
+  .tenant-profile-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tenant-profile-documents-modal-backdrop { align-items: end; padding: 8px; }
+  .tenant-profile-documents-modal { max-height: 92dvh; border-radius: 18px 18px 12px 12px; }
+  .tenant-profile-documents-modal-header { padding: 15px 16px; }
+  .tenant-profile-documents-modal-header h2 { font-size: 17px; }
+  .tenant-profile-documents-modal-body { padding: 14px 14px 18px; }
+  .tenant-profile-page .tenant-profile-card > div:first-child:not([style*="grid"]) { font-size: 15px !important; }
+  .tenant-profile-page .tenant-profile-card [style*="grid-template-columns"] { grid-template-columns: minmax(0, 1fr) !important; }
+  .tenant-profile-page .tenant-profile-card [style*="grid-template-columns"] > div { min-width: 0; }
+}

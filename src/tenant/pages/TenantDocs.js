@@ -3,11 +3,12 @@ import axios from "axios";
 import { API, authHeader } from "../tenantApi";
 import { FaFilePdf, FaFileImage, FaDownload, FaEye } from "react-icons/fa";
 
-export default function TenantDocs({ me, onChanged }) {
+export default function TenantDocs({ me, onChanged, embedded = false }) {
   const [files, setFiles] = useState([]);
   const [downloading, setDownloading] = useState(false);
   const [search, setSearch] = useState("");
   const fileInputRef = useRef();
+  const cameraInputRef = useRef();
 
   const ALLOWED_IMAGE_MIME_TYPES = new Set(["image/jpeg", "image/png"]);
   const ALLOWED_IMAGE_EXTENSIONS = new Set([".jpg", ".jpeg", ".png"]);
@@ -67,7 +68,7 @@ export default function TenantDocs({ me, onChanged }) {
     if (/^https?:\/\//i.test(url)) return url;
 
     // relative backend link like "/uploads/docs/xxx.webp"
-    // API is usually like "   https://rentmobile-api.pnminfotech.com/api"
+    // API is usually like " http://localhost:8000/api"
     const ORIGIN = String(API).replace(/\/api\/?$/i, "");
     const rel = url.startsWith("/") ? url : `/${url}`;
     return `${ORIGIN}${rel}`;
@@ -89,7 +90,7 @@ export default function TenantDocs({ me, onChanged }) {
       console.log("UPLOAD RES =>", res.data);
 
       setFiles([]);
-      onChanged && onChanged(); // ✅ must refetch "me" from server
+      if (onChanged) await onChanged();
     } catch (err) {
       console.error("Upload failed", err?.response?.data || err.message);
       alert(err?.response?.data?.message || "Upload failed");
@@ -135,7 +136,10 @@ export default function TenantDocs({ me, onChanged }) {
   }, [me, search]);
 
   return (
-    <div style={card} className="tdocs-container">
+    <div
+      style={embedded ? { ...card, padding: 0, marginBottom: 0, boxShadow: "none", background: "transparent" } : card}
+      className={`tdocs-container${embedded ? " tdocs-embedded" : ""}`}
+    >
       <style>{`
         .tdocs-container .row { display:flex; gap:10px; flex-wrap:wrap; }
         .tdocs-container .files-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:8px; }
@@ -171,7 +175,12 @@ export default function TenantDocs({ me, onChanged }) {
         onDragOver={(e) => e.preventDefault()}
         onClick={() => fileInputRef.current?.click()}
       >
-        Drag & drop files here or click to select
+        Drag & drop files here or click to choose files
+      </div>
+
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
+        <button type="button" style={btnPri} onClick={() => cameraInputRef.current?.click()}>Take photo</button>
+        <button type="button" style={{ ...btnPri, background: "#475467" }} onClick={() => fileInputRef.current?.click()}>Choose from files</button>
       </div>
 
       <input
@@ -180,6 +189,18 @@ export default function TenantDocs({ me, onChanged }) {
         accept=".jpg,.jpeg,.png,image/jpeg,image/png"
         style={{ display: "none" }}
         ref={fileInputRef}
+        onChange={(e) => {
+          handleFiles(Array.from(e.target.files || []));
+          e.target.value = "";
+        }}
+      />
+
+      <input
+        type="file"
+        accept=".jpg,.jpeg,.png,image/jpeg,image/png"
+        capture="environment"
+        style={{ display: "none" }}
+        ref={cameraInputRef}
         onChange={(e) => {
           handleFiles(Array.from(e.target.files || []));
           e.target.value = "";

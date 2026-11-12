@@ -1,19 +1,176 @@
-.hostel-rules-page { max-width: 1000px; margin: 0 auto; padding: 28px 22px 60px; color: #13274a; }
-.hostel-rules-header { display: flex; align-items: flex-start; gap: 20px; margin-bottom: 24px; }
-.hostel-rules-header > div { flex: 1; }
-.hostel-rules-header span { color: #506dff; font-size: 11px; font-weight: 800; letter-spacing: .1em; }
-.hostel-rules-header h1 { display: flex; align-items: center; gap: 10px; margin: 5px 0; font-size: 28px; font-weight: 800; }
-.hostel-rules-header p, .hostel-rules-help { color: #63738a; margin: 0; }
-.hostel-rules-back, .hostel-rules-save { display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 10px 15px; border-radius: 9px; border: 1px solid #a9c3ff; background: #fff; color: #1747c7; font-weight: 700; cursor: pointer; }
-.hostel-rules-card { background: #fff; border: 1px solid #dbe5f2; box-shadow: 0 10px 32px rgba(28, 55, 100, .08); border-radius: 18px; padding: 26px; }
-.hostel-rules-card label { display: flex; flex-direction: column; gap: 8px; margin-bottom: 18px; font-size: 14px; font-weight: 750; }
-.hostel-rules-card input, .hostel-rules-card textarea { box-sizing: border-box; width: 100%; border: 1px solid #ccdaee; border-radius: 9px; padding: 11px; font: inherit; color: #173260; resize: vertical; }
-.hostel-rules-card textarea { line-height: 1.55; }
-.hostel-rules-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
-.hostel-rules-save { border-color: #2146bc; background: #2146bc; color: #fff; }
+.hostel-rules-page {
+  box-sizing: border-box;
+  /* width: min(100%, 1040px); */
+  margin: 0 auto;
+  padding: 28px 24px 56px;
+  color: #172b4d;
+}
+
+.hostel-rules-header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 22px;
+  margin-bottom: 22px;
+}
+
+.hostel-rules-heading {
+  min-width: 0;
+  text-align: left;
+}
+
+.hostel-rules-eyebrow {
+  display: inline-block;
+  margin-bottom: 5px;
+  color: #5165d8;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: .1em;
+}
+
+.hostel-rules-header h1 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  color: #172b4d;
+  font-size: clamp(24px, 3vw, 30px);
+  font-weight: 750;
+  line-height: 1.2;
+}
+
+.hostel-rules-header h1 svg { width: 25px; height: 25px; color: #3157c8; }
+.hostel-rules-header p { margin: 7px 0 0; color: #66758d; font-size: 14px; line-height: 1.5; text-align: left; }
+
+.hostel-rules-back,
+.hostel-rules-save {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 9px 15px;
+  border: 1px solid #d1dbea;
+  border-radius: 9px;
+  background: #fff;
+  color: #344968;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 650;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background .16s ease, border-color .16s ease, box-shadow .16s ease, transform .16s ease;
+}
+
+.hostel-rules-back:hover { border-color: #b9c9e3; background: #f7f9fc; }
+.hostel-rules-back:focus-visible,
+.hostel-rules-save:focus-visible { outline: 3px solid rgba(57, 112, 229, .22); outline-offset: 2px; }
+
+.hostel-rules-card {
+  box-sizing: border-box;
+  width: 100%;
+  padding: 26px 28px 22px;
+  border: 1px solid #dfe5ee;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 8px 26px rgba(35, 52, 82, .07);
+}
+
+.hostel-rules-card-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 22px;
+  padding-bottom: 17px;
+  border-bottom: 1px solid #edf0f5;
+  text-align: left;
+}
+
+.hostel-rules-card-icon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  place-items: center;
+  border-radius: 11px;
+  background: #eef3ff;
+  color: #3157c8;
+  font-size: 19px;
+}
+
+.hostel-rules-card-heading h2 { margin: 0; color: #203452; font-size: 17px; font-weight: 700; }
+.hostel-rules-card-heading p { margin: 4px 0 0; color: #728097; font-size: 13px; text-align: left; }
+
+.hostel-rules-field {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+  margin: 0 0 19px;
+  color: #33435c;
+  font-size: 13px;
+  font-weight: 650;
+  text-align: left;
+}
+
+.hostel-rules-card input,
+.hostel-rules-card textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  border: 1px solid #cfd8e5;
+  border-radius: 8px;
+  background: #fff;
+  color: #26364e;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 400;
+  text-align: left;
+  transition: border-color .16s ease, box-shadow .16s ease;
+}
+
+.hostel-rules-card input { min-height: 44px; padding: 10px 12px; }
+.hostel-rules-card textarea { min-height: 260px; max-height: 60vh; padding: 12px; line-height: 1.55; resize: vertical; }
+.hostel-rules-card input::placeholder,
+.hostel-rules-card textarea::placeholder { color: #98a3b3; }
+.hostel-rules-card input:focus,
+.hostel-rules-card textarea:focus { outline: none; border-color: #6285e5; box-shadow: 0 0 0 3px rgba(68, 107, 218, .14); }
+
+.hostel-rules-help {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #738097;
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: left;
+}
+
+.hostel-rules-help span:last-child { flex: 0 0 auto; color: #53647f; font-weight: 650; }
+.hostel-rules-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; padding-top: 17px; border-top: 1px solid #edf0f5; }
+.hostel-rules-save { border-color: #2852c4; background: #2852c4; color: #fff; }
+.hostel-rules-save:hover:not(:disabled) { border-color: #1e43a9; background: #1e43a9; box-shadow: 0 4px 12px rgba(40, 82, 196, .2); transform: translateY(-1px); }
 .hostel-rules-save:disabled { opacity: .65; cursor: wait; }
-.hostel-rules-error, .hostel-rules-success { padding: 10px 12px; border-radius: 8px; }
-.hostel-rules-error { color: #a13131; background: #fff0ef; }
-.hostel-rules-success { color: #176444; background: #e4f6eb; }
-.hostel-rules-loading { color: #63738a; }
-@media (max-width: 640px) { .hostel-rules-page { padding: 18px 15px 45px; } .hostel-rules-header { flex-wrap: wrap; } .hostel-rules-header > div { flex-basis: 100%; } .hostel-rules-card { padding: 18px; } }
+.hostel-rules-error,
+.hostel-rules-success { margin: 12px 0 0; padding: 11px 13px; border: 1px solid transparent; border-radius: 8px; font-size: 13px; text-align: left; }
+.hostel-rules-error { border-color: #f1d1ce; color: #9b3430; background: #fff4f2; }
+.hostel-rules-success { border-color: #cce8d9; color: #176444; background: #effaf3; }
+.hostel-rules-loading { display: flex; align-items: center; justify-content: center; gap: 9px; min-height: 220px; color: #66758d; }
+
+@media (max-width: 640px) {
+  .hostel-rules-page { padding: 18px 14px 32px; }
+  .hostel-rules-header { grid-template-columns: 1fr; align-items: start; gap: 14px; margin-bottom: 17px; }
+  .hostel-rules-header .hostel-rules-back { justify-self: start; }
+  .hostel-rules-card { padding: 20px 17px 16px; border-radius: 12px; }
+  .hostel-rules-card-heading { margin-bottom: 19px; }
+  .hostel-rules-card textarea { min-height: 230px; max-height: 55vh; }
+  .hostel-rules-actions { flex-direction: column-reverse; }
+  .hostel-rules-actions button { width: 100%; }
+}
+
+@media (max-width: 380px) {
+  .hostel-rules-page { padding-right: 10px; padding-left: 10px; }
+  .hostel-rules-card { padding-right: 14px; padding-left: 14px; }
+  .hostel-rules-help { align-items: flex-start; flex-direction: column; gap: 4px; }
+}

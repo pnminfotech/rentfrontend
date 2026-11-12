@@ -158,6 +158,11 @@ function RentMobileViewCardFeed({
   onNextMonths,
   canPrevMonths = true,
   canNextMonths = true,
+  getVisibleMonthsForRow,
+  onPrevRowMonths,
+  onNextRowMonths,
+  canRowGoLeft,
+  canRowGoRight,
 }) {
   const monthWindow = getMonthWindow(visibleMonths);
   const tenantList = flattenVisibleTenants(visibleTenants, groupedRooms);
@@ -202,7 +207,7 @@ function RentMobileViewCardFeed({
     monthSwipeStartX.current = event.touches?.[0]?.clientX ?? null;
   };
 
-  const handleMonthTouchEnd = (event) => {
+  const handleMonthTouchEnd = (event, rowNavigation) => {
     if (monthSwipeStartX.current == null) return;
     const endX = event.changedTouches?.[0]?.clientX ?? monthSwipeStartX.current;
     const deltaX = endX - monthSwipeStartX.current;
@@ -210,16 +215,24 @@ function RentMobileViewCardFeed({
 
     if (Math.abs(deltaX) < 45) return;
     event.stopPropagation();
-    if (deltaX < 0 && canNextMonths) onNextMonths?.(event);
-    if (deltaX > 0 && canPrevMonths) onPrevMonths?.(event);
+    const canNext = rowNavigation ? rowNavigation.canNext : canNextMonths;
+    const canPrev = rowNavigation ? rowNavigation.canPrev : canPrevMonths;
+    const goNext = rowNavigation ? rowNavigation.onNext : onNextMonths;
+    const goPrev = rowNavigation ? rowNavigation.onPrev : onPrevMonths;
+    if (deltaX < 0 && canNext) goNext?.(event);
+    if (deltaX > 0 && canPrev) goPrev?.(event);
   };
 
-  const handleMonthWheel = (event) => {
+  const handleMonthWheel = (event, rowNavigation) => {
     const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
     if (Math.abs(delta) < 35) return;
     event.stopPropagation();
-    if (delta > 0 && canNextMonths) onNextMonths?.(event);
-    if (delta < 0 && canPrevMonths) onPrevMonths?.(event);
+    const canNext = rowNavigation ? rowNavigation.canNext : canNextMonths;
+    const canPrev = rowNavigation ? rowNavigation.canPrev : canPrevMonths;
+    const goNext = rowNavigation ? rowNavigation.onNext : onNextMonths;
+    const goPrev = rowNavigation ? rowNavigation.onPrev : onPrevMonths;
+    if (delta > 0 && canNext) goNext?.(event);
+    if (delta < 0 && canPrev) goPrev?.(event);
   };
 
   return (
@@ -347,11 +360,26 @@ function RentMobileViewCardFeed({
           {tenantList.length ? (
             <div className="rent-mobile-tenant-list">
               {tenantList.map((tenant, index) => {
+                const rowKey = `tenant-${tenant._id || `${tenant.roomNo}-${tenant.bedNo}-${index}`}`;
+                const tenantMonthWindow = getVisibleMonthsForRow
+                  ? getVisibleMonthsForRow(rowKey)
+                  : monthWindow;
+                const firstUpcomingMonthIndex = tenantMonthWindow.findIndex((month) => {
+                  if (!month) return false;
+                  const cell = getMonthCell?.(tenant, month.y, month.m);
+                  return String(cell?.label || "").toLowerCase().startsWith("upcoming");
+                });
+                const rowNavigation = getVisibleMonthsForRow ? {
+                  canPrev: canRowGoLeft?.(rowKey) ?? canPrevMonths,
+                  canNext: canRowGoRight?.(rowKey) ?? canNextMonths,
+                  onPrev: (event) => onPrevRowMonths?.(rowKey, event),
+                  onNext: (event) => onNextRowMonths?.(rowKey, event),
+                } : null;
                 const previousTenant = tenantList[index - 1];
                 const isNewRoom =
                   index === 0 ||
                   String(previousTenant?.roomNo ?? "") !== String(tenant?.roomNo ?? "");
-                const currentMonth = monthWindow[monthWindow.length - 1];
+                const currentMonth = tenantMonthWindow[tenantMonthWindow.length - 1];
                 const currentCell = currentMonth
                   ? getMonthCell?.(tenant, currentMonth.y, currentMonth.m)
                   : null;
@@ -478,24 +506,25 @@ function RentMobileViewCardFeed({
 
                     <div className="rent-mobile-month-scroll-row">
                     <div
-                      className={`rent-mobile-month-strip ${canPrevMonths ? "can-prev" : ""} ${canNextMonths ? "can-next" : ""}`}
+                      className={`rent-mobile-month-strip ${(rowNavigation?.canPrev ?? canPrevMonths) ? "can-prev" : ""} ${(rowNavigation?.canNext ?? canNextMonths) ? "can-next" : ""}`}
                       onTouchStart={handleMonthTouchStart}
-                      onTouchEnd={handleMonthTouchEnd}
-                      onWheel={handleMonthWheel}
+                      onTouchEnd={(event) => handleMonthTouchEnd(event, rowNavigation)}
+                      onWheel={(event) => handleMonthWheel(event, rowNavigation)}
                       aria-label="Swipe horizontally to navigate months"
                     >
-                      {monthWindow.map((month) => {
+                      {tenantMonthWindow.map((month, monthIndex) => {
                         const cell = month ? getMonthCell?.(tenant, month.y, month.m) : null;
                         const monthTone = getStatusTone(cell?.label || "Pending");
+                        const isFirstUpcoming = monthIndex === firstUpcomingMonthIndex;
 
                         return (
                           <div
                             key={`${tenant._id}-${month?.y}-${month?.m}`}
-                            className={`rent-month-card ${monthTone}`}
+                            className={`rent-month-card ${monthTone}${isFirstUpcoming ? " first-upcoming" : ""}`}
                           >
                             <div className="rent-month-title">{month?.label || ""}</div>
                             <div
-                              className={`rent-month-status-btn ${monthTone}`}
+                              className={`rent-month-status-btn ${monthTone}${isFirstUpcoming ? " first-upcoming" : ""}`}
                               role={cell ? "button" : undefined}
                               tabIndex={cell ? 0 : undefined}
                               onClick={(e) => {

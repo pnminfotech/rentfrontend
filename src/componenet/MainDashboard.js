@@ -1,10 +1,5 @@
 ﻿import { FiBarChart2 } from "react-icons/fi";
 import {
-  MdOutlineBedroomParent,
-  MdLightbulbOutline,
-  MdOutlineReceiptLong,
-} from "react-icons/md";
-import {
   PieChart,
   Pie,
   Cell,
@@ -27,6 +22,32 @@ import { getAppBootstrap, getSystemDashboard } from "../saasApi";
 import { api } from "../api";
 import { useDashboardMenuItems } from "./dashboardMenuItems";
 import { allowedUnitTypes } from "../utils/subscriptionAccess";
+import {
+  Bell,
+  BedDouble,
+  CalendarDays,
+  ChevronDown,
+  ChevronRight,
+  Download,
+  FileBarChart,
+  Search,
+  UserPlus,
+  CreditCard,
+  ArrowLeftRight,
+  Wrench,
+  Zap,
+  AlertCircle,
+  Building2,
+  Layers3,
+  MessageCircle,
+  Mail,
+  Share2,
+  Utensils,
+  Users,
+  FileText,
+} from "lucide-react";
+import "./MainDashboard.css";
+import hostelWelcomeImage from "../assets/hostel-welcome.png";
 const COLORS = [
   "#1e3a8a",
   "#FBBF24",
@@ -1069,19 +1090,19 @@ useEffect(() => {
       (hasUnitType("room") ? vacantSummary.residential.length : 0) +
       (hasUnitType("shop") ? vacantSummary.shops.length : 0);
     if (visibleVacantTotal === 0) {
-      return <p>No vacant units found.</p>;
+      return <div className="md-rent-empty"><BedDouble size={28} /><strong>No vacant units</strong><p>All visible units are currently occupied.</p></div>;
     }
 
     return (
       <>
-        {hasUnitType("bed") ? <div className="mb-4">
-          <h6 className="fw-bold text-primary">
+        {hasUnitType("bed") ? <section className="md-rent-section">
+          <div className="md-rent-section-heading"><span><BedDouble size={16} /></span><h3>
             Hostel Vacant ({vacantSummary.hostel.length})
-          </h6>
+          </h3></div>
           {vacantSummary.hostel.length === 0 ? (
-            <p className="mb-0">No hostel beds vacant.</p>
+            <p className="md-rent-section-empty">No hostel beds vacant.</p>
           ) : (
-            <table className="table table-bordered">
+            <div className="md-rent-table-wrap"><table className="md-rent-table">
               <thead>
                 <tr>
                   <th>Room No</th>
@@ -1094,28 +1115,28 @@ useEffect(() => {
               <tbody>
                 {vacantSummary.hostel.map((bed, i) => (
                   <tr key={`hostel-${i}`}>
-                    <td>{bed.roomNo}</td>
-                    <td>{bed.bedNo}</td>
-                    <td>{bed.floorNo}</td>
-                    <td>{bed.category}</td>
-                    <td>
+                    <td data-label="Room No"><strong>{bed.roomNo}</strong></td>
+                    <td data-label="Bed No">{bed.bedNo}</td>
+                    <td data-label="Floor No">{bed.floorNo}</td>
+                    <td data-label="Category">{bed.category}</td>
+                    <td data-label="Price">
                       {Number(bed.price || 0).toLocaleString("en-IN")}
                     </td>
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           )}
-        </div> : null}
+        </section> : null}
 
-        {hasUnitType("room") ? <div className="mb-4">
-          <h6 className="fw-bold text-primary">
+        {hasUnitType("room") ? <section className="md-rent-section">
+          <div className="md-rent-section-heading"><span><Building2 size={16} /></span><h3>
             Residential Room Vacant ({vacantSummary.residential.length})
-          </h6>
+          </h3></div>
           {vacantSummary.residential.length === 0 ? (
-            <p className="mb-0">No residential rooms vacant.</p>
+            <p className="md-rent-section-empty">No residential rooms vacant.</p>
           ) : (
-            <table className="table table-bordered">
+            <div className="md-rent-table-wrap"><table className="md-rent-table">
               <thead>
                 <tr>
                   <th>Room No</th>
@@ -1127,27 +1148,27 @@ useEffect(() => {
               <tbody>
                 {vacantSummary.residential.map((room, i) => (
                   <tr key={`residential-${i}`}>
-                    <td>{room.roomNo}</td>
-                    <td>{room.floorNo}</td>
-                    <td>{room.category}</td>
-                    <td>
+                    <td data-label="Room No"><strong>{room.roomNo}</strong></td>
+                    <td data-label="Floor No">{room.floorNo}</td>
+                    <td data-label="Building">{room.category}</td>
+                    <td data-label="Price">
                       {Number(room.price || 0).toLocaleString("en-IN")}
                     </td>
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           )}
-        </div> : null}
+        </section> : null}
 
-        {hasUnitType("shop") ? <div>
-          <h6 className="fw-bold text-primary">
+        {hasUnitType("shop") ? <section className="md-rent-section">
+          <div className="md-rent-section-heading"><span><Building2 size={16} /></span><h3>
             Shop Vacant ({vacantSummary.shops.length})
-          </h6>
+          </h3></div>
           {vacantSummary.shops.length === 0 ? (
-            <p className="mb-0">No shops vacant.</p>
+            <p className="md-rent-section-empty">No shops vacant.</p>
           ) : (
-            <table className="table table-bordered mb-0">
+            <div className="md-rent-table-wrap"><table className="md-rent-table">
               <thead>
                 <tr>
                   <th>Shop No</th>
@@ -1160,25 +1181,27 @@ useEffect(() => {
               <tbody>
                 {vacantSummary.shops.map((shop, i) => (
                   <tr key={`shop-${i}`}>
-                    <td>{shop.roomNo}</td>
-                    <td>{shop.floorNo}</td>
-                    <td>{shop.category}</td>
-                    <td>{shop.commercialCategory || "-"}</td>
-                    <td>
+                    <td data-label="Shop No"><strong>{shop.roomNo}</strong></td>
+                    <td data-label="Floor No">{shop.floorNo}</td>
+                    <td data-label="Building">{shop.category}</td>
+                    <td data-label="Category">{shop.commercialCategory || "-"}</td>
+                    <td data-label="Price">
                       {Number(shop.price || 0).toLocaleString("en-IN")}
                     </td>
                   </tr>
                 ))}
               </tbody>
-            </table>
+            </table></div>
           )}
-        </div> : null}
+        </section> : null}
       </>
     );
   };
 
   const renderTotalModalBody = () => (
-    <table className="table table-bordered mb-0">
+    <section className="md-rent-section md-total-section">
+    <div className="md-rent-section-heading"><span><Layers3 size={16} /></span><h3>Property capacity</h3></div>
+    <div className="md-rent-table-wrap"><table className="md-rent-table md-total-table">
       <thead>
         <tr>
           <th>Type</th>
@@ -1187,38 +1210,43 @@ useEffect(() => {
       </thead>
       <tbody>
         {hasUnitType("bed") ? <tr>
-          <td>Hostel</td>
-          <td>{summary.beds.hostelTotal || 0}</td>
+          <td data-label="Type"><strong>Hostel</strong></td>
+          <td data-label="Total Count">{summary.beds.hostelTotal || 0}</td>
         </tr> : null}
         {hasUnitType("room") ? <tr>
-          <td>Residential</td>
-          <td>{summary.beds.residentialTotal || 0}</td>
+          <td data-label="Type"><strong>Residential</strong></td>
+          <td data-label="Total Count">{summary.beds.residentialTotal || 0}</td>
         </tr> : null}
         {hasUnitType("shop") ? <tr>
-          <td>Shops</td>
-          <td>{summary.beds.shopTotal || 0}</td>
+          <td data-label="Type"><strong>Shops</strong></td>
+          <td data-label="Total Count">{summary.beds.shopTotal || 0}</td>
         </tr> : null}
-        <tr className="fw-bold">
-          <td>Total</td>
-          <td>
+        <tr className="md-total-row">
+          <td data-label="Type">Total</td>
+          <td data-label="Total Count">
             {(hasUnitType("bed") ? summary.beds.hostelTotal || 0 : 0) +
               (hasUnitType("room") ? summary.beds.residentialTotal || 0 : 0) +
               (hasUnitType("shop") ? summary.beds.shopTotal || 0 : 0)}
           </td>
         </tr>
       </tbody>
-    </table>
+    </table></div>
+    </section>
   );
 
   const renderPendingRentSection = (title, items, unitLabel) => (
-    <div className="mb-4">
-      <h6 className="fw-bold text-primary">
+    <section className="md-rent-section">
+      <div className="md-rent-section-heading">
+        <span><CreditCard size={16} /></span>
+        <h3>
         {title} ({items.length})
-      </h6>
+        </h3>
+      </div>
       {items.length === 0 ? (
-        <p className="mb-0">No pending rents.</p>
+        <p className="md-rent-section-empty">No pending rents.</p>
       ) : (
-        <table className="table table-bordered">
+        <div className="md-rent-table-wrap">
+        <table className="md-rent-table">
           <thead>
             <tr>
               <th>Name</th>
@@ -1237,12 +1265,12 @@ useEffect(() => {
                 .join(", ");
               return (
                 <tr key={`${title}-${tenant._id || i}`}>
-                  <td>{tenant.name}</td>
-                  <td>{tenant._displayUnit || tenant.roomNo || "-"}</td>
-                  <td>{tenant.phoneNo || tenant.mobile || "-"}</td>
-                  <td>₹{Number(tenant._monthlyRent || 0).toLocaleString("en-IN")}</td>
-                  <td>{pendingMonthsStr || "-"}</td>
-                  <td className="fw-semibold text-danger">
+                  <td data-label="Name"><strong>{tenant.name}</strong></td>
+                  <td data-label={unitLabel}>{tenant._displayUnit || tenant.roomNo || "-"}</td>
+                  <td data-label="Phone">{tenant.phoneNo || tenant.mobile || "-"}</td>
+                  <td data-label="Monthly Rent">₹{Number(tenant._monthlyRent || 0).toLocaleString("en-IN")}</td>
+                  <td data-label="Due Month">{pendingMonthsStr || "-"}</td>
+                  <td data-label="Due Amount" className="md-rent-due">
                     ₹{Number(tenant._dueTotal || 0).toLocaleString("en-IN")}
                   </td>
                 </tr>
@@ -1250,8 +1278,9 @@ useEffect(() => {
             })}
           </tbody>
         </table>
+        </div>
       )}
-    </div>
+    </section>
   );
 
   const renderPendingRentModalBody = () => {
@@ -1264,7 +1293,7 @@ useEffect(() => {
       (hasUnitType("room") ? residential.length : 0) +
       (hasUnitType("shop") ? commercial.length : 0);
     if (visiblePendingCount === 0) {
-      return <p>No past-due pending rents.</p>;
+      return <div className="md-rent-empty"><CreditCard size={28} /><strong>No past-due rents</strong><p>All visible rent payments are up to date.</p></div>;
     }
 
     return (
@@ -1306,16 +1335,16 @@ useEffect(() => {
       <ResponsiveContainer width="100%" height={280}>
         <BarChart
           data={data}
-          margin={{ top: 10, right: 20, left: 0, bottom: 10 }}
+          margin={{ top: 10, right: 16, left: -38, bottom: 10 }}
         >
           <CartesianGrid strokeDasharray="3 3" />
           <XAxis dataKey="name" />
           <YAxis
+            width={42}
             domain={[0, 100]}
             tickFormatter={(value) => `${value.toFixed(0)}%`}
           />
           <Tooltip formatter={(value) => `${value.toFixed(2)}%`} />
-          <Legend verticalAlign="top" height={36} />
           <Bar
             dataKey="paid"
             name="Paid"
@@ -1400,48 +1429,81 @@ useEffect(() => {
     );
   };
 
-  return (
-    <div
-      className="d-flex"
-      style={{
-        minHeight: "100vh",
-        fontFamily: "Inter, sans-serif",
-        backgroundColor: "#f8f9fa",
-      }}
-    >
-      {/* Topbar */}
-      <style>{`
-        .md-topbar { display:none; }
-        @media (max-width: 991.98px){
-          .md-topbar{
-            display:flex;
-            position: fixed; top:0; left:0; right:0; height:56px; z-index: 1040;
-            align-items:center; justify-content:space-between;
-            padding:12px 16px; background:#1e3a8a; color:#fff;
-            box-shadow:0 2px 10px rgba(0,0,0,0.2);
-          }
-          .md-iconbtn{
-            display:inline-flex; align-items:center; justify-content:center;
-            padding:8px; border:0; border-radius:8px; background:transparent; color:#fff; cursor:pointer;
-          }
-          .md-backdrop{
-            position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:1035;
-          }
-          nav.md-drawer{
-            transform: translateX(-100%);
-            transition: transform .3s ease-in-out;
-            top:56px;
-            height: calc(100vh - 56px) !important;
-          }
-          nav.md-drawer.open{ transform: translateX(0); }
-          nav.md-drawer .md-desktop-heading{ display:none !important; }
-          main.md-shell{
-            margin-left: 0 !important;
-            padding-top: 72px !important;
-          }
-        }
-      `}</style>
+  const quickNavigate = (label, fallback) => {
+    const flatItems = menuItems.flatMap((item) => [item, ...(item.children || [])]);
+    const match = flatItems.find((item) =>
+      String(item.label || "").toLowerCase().includes(label.toLowerCase())
+    );
+    handleNavigation(match?.path || fallback, match?.state);
+  };
 
+  const openAddTenantFromDashboard = () => {
+    const trackerType = enabledUnitTypes === null || hasUnitType("bed")
+      ? "bed"
+      : hasUnitType("room")
+        ? "room"
+        : "shop";
+
+    navigate(`/tracker/${trackerType}`, {
+      state: {
+        tab: "rent",
+        trackerType,
+        openAddTenant: true,
+        addTenantRequestId: Date.now(),
+      },
+    });
+  };
+
+  const openRentTrackerFromDashboard = () => {
+    const trackerType = enabledUnitTypes === null || hasUnitType("bed")
+      ? "bed"
+      : hasUnitType("room")
+        ? "room"
+        : "shop";
+
+    navigate(`/tracker/${trackerType}`, {
+      state: { tab: "rent", trackerType },
+    });
+  };
+
+  const openTrackerSectionFromDashboard = (section) => {
+    const trackerType = enabledUnitTypes === null || hasUnitType("bed")
+      ? "bed"
+      : hasUnitType("room")
+        ? "room"
+        : "shop";
+    const unitLabel = trackerType === "bed" ? "hostel" : trackerType;
+
+    navigate(`/tracker/${trackerType}`, {
+      state: { tab: `${section}-${unitLabel}`, trackerType },
+    });
+  };
+
+  const totalLight = (summary.light.paid || 0) + (summary.light.pending || 0);
+  const totalMaintenance =
+    (summary.maintenance.paid || 0) + (summary.maintenance.pending || 0);
+  const percent = (value, total) => (total ? Math.round((value / total) * 100) : 0);
+
+  const dashboardCards = [
+    { label: "Total", value: summary.beds.totalUnits || 0, tone: "blue", icon: BedDouble, action: () => setShowTotalModal(true) },
+    { label: "Total Vacant", value: summary.beds.totalVacant || 0, tone: "orange", icon: BedDouble, action: () => findVacantUnits() },
+    { label: "Pending Rents", value: summary.rent.pending || 0, tone: "pink", icon: CreditCard, action: () => setShowPendingRentModal(true) },
+    { label: "Upcoming Leaves", value: futureLeaveCount, tone: "purple", icon: CalendarDays, action: () => setShowFutureLeaveModal(true) },
+    { label: "Light Bill Paid", value: summary.light.paid || 0, tone: "green", icon: Zap },
+    { label: "Light Bill Pending", value: summary.light.pending || 0, tone: "orange", icon: Zap },
+    { label: "Category Report", value: "Download", tone: "purple", icon: FileText, action: handleDownloadCategoryReport, download: true },
+    { label: "Maintenance Pending", value: summary.maintenance.pending || 0, tone: "pink", icon: Wrench },
+  ];
+
+  const statusCards = [
+    { title: "Rent Status", icon: CalendarDays, total: summary.rent.pending || 0, first: ["Pending", summary.rent.pending || 0], second: ["Paid", summary.rent.deposits || 0], firstColor: "#1355b4", secondColor: "#ffbd00" },
+    { title: "Light Bill Status", icon: Zap, total: totalLight, first: ["Paid", summary.light.paid || 0], second: ["Pending", summary.light.pending || 0], firstColor: "#1355b4", secondColor: "#ffbd00" },
+    { title: "Maintenance Status", icon: Wrench, total: totalMaintenance, first: ["Pending", summary.maintenance.pending || 0], second: ["Completed", summary.maintenance.paid || 0], firstColor: "#ffbd00", secondColor: "#1355b4" },
+    { title: "Bed Occupancy", icon: BedDouble, total: summary.beds.totalUnits || 0, first: ["Occupied", summary.beds.occupied || 0], second: ["Vacant", summary.beds.totalVacant || 0], firstColor: "#ffad00", secondColor: "#1355b4" },
+  ];
+
+  return (
+    <div className="main-dashboard">
       <div className="md-topbar">
         <button
           className="md-iconbtn"
@@ -1462,36 +1524,26 @@ useEffect(() => {
             />
           </svg>
         </button>
-        <div style={{ fontSize: "0.95rem", fontWeight: 600 }}>
-          Hostel Manager
-        </div>
+        <div className="md-mobile-brand"><Building2 size={20} /> Hostel Manager</div>
         <span style={{ width: 24 }} />
       </div>
 
       {open && <div className="md-backdrop" onClick={() => setOpen(false)} />}
 
-      {/* SIDEBAR */}
       <nav
         ref={drawerRef}
-        className={`position-fixed text-white p-3 md-drawer ${
-          open ? "open" : ""
-        }`}
-        style={{
-          width: 250,
-          height: "100vh",
-          backgroundColor: "#1e3a8a",
-          zIndex: 1045,
-        }}
+        className={`md-drawer ${open ? "open" : ""}`}
         onClick={(e) => {
           e.stopPropagation();
         }}
       >
-        <div>
-          <h2 className="text-center fw-bold mb-4 mt-2 md-desktop-heading">
-            Hostel Manager
-          </h2>
+        <div className="md-nav-main">
+          <div className="md-brand md-desktop-heading">
+            <span className="md-brand-icon"><Building2 /></span>
+            <span>Hostel<br />Manager</span>
+          </div>
 
-          <ul className="list-unstyled mt-3" style={{ textAlign: "left" }}>
+          <ul className="md-menu">
             {menuItems.map((item, idx) => {
               const hasChildren = Array.isArray(item.children) && item.children.length > 0;
               const isOpen = openSubmenu === item.label;
@@ -1505,10 +1557,9 @@ useEffect(() => {
                       setOpen(false);
                       setOpenSubmenu(null);
                     }}
-                    className="mb-2 px-3 py-2 rounded"
-                    style={{ cursor: "pointer" }}
+                    className={`md-menu-item ${item.label === "Dashboard" ? "active" : ""}`}
                   >
-                    {item.icon} <span className="ms-2">{item.label}</span>
+                    <span className="md-menu-icon">{item.icon}</span><span>{item.label}</span>
                   </li>
                 );
               }
@@ -1516,22 +1567,19 @@ useEffect(() => {
               return (
                 <li
                   key={idx}
-                  className="mb-2 rounded"
+                  className="md-menu-group"
                   onMouseEnter={() => setOpenSubmenu(item.label)}
                   onMouseLeave={() => setOpenSubmenu((current) => (current === item.label ? null : current))}
                 >
                   <div
                     onClick={() => toggleSubmenu(item.label)}
-                    className="px-3 py-2 rounded d-flex align-items-center"
-                    style={{ cursor: "pointer" }}
+                    className="md-menu-item"
                   >
-                    <span>
-                      {item.icon} <span className="ms-2">{item.label}</span>
-                    </span>
+                    <span className="md-menu-icon">{item.icon}</span><span>{item.label}</span><ChevronDown size={14} className="md-menu-chevron" />
                   </div>
 
                   <ul
-                    className="list-unstyled ms-4 mt-1"
+                    className="md-submenu"
                     style={{ display: isOpen ? "block" : "none" }}
                   >
                     {item.children.map((child) => (
@@ -1542,12 +1590,7 @@ useEffect(() => {
                           setOpen(false);
                           setOpenSubmenu(null);
                         }}
-                        className="px-3 py-2 rounded mb-1"
-                        style={{
-                          cursor: "pointer",
-                          fontSize: "0.95rem",
-                          backgroundColor: "rgba(255,255,255,0.08)",
-                        }}
+                        className="md-submenu-item"
                       >
                         {child.label}
                       </li>
@@ -1561,134 +1604,122 @@ useEffect(() => {
                 handleLogout();
                 setOpen(false);
               }}
-              className="px-3 py-2 rounded"
-              style={{ cursor: "pointer" }}
+              className="md-menu-item"
             >
-              <FontAwesomeIcon icon={faSignOutAlt} className="me-2" /> Logout
+              <FontAwesomeIcon icon={faSignOutAlt} className="md-menu-icon" /> <span>Logout</span>
             </li>
           </ul>
         </div>
-        <div className="text-center text-white-50 small mt-4">
-          <p>v1.0.0</p>
-          <p>Hostel Manager</p>
+        <div className="md-sidebar-footer">
+          <div className="md-building-art"><Building2 /></div>
+          <span>v1.0.0</span>
         </div>
       </nav>
 
-      {/* MAIN CONTENT */}
-      <main
-        className="container-fluid md-shell"
-        style={{ marginLeft: 250, paddingTop: 24 }}
-      >
-        {/* Summary Cards */}
-        <section className="row g-2 mb-3 px-2">
-          {renderCard(
-            "Total",
-            summary.beds.totalUnits || 0,
-            "#76b1d9",
-            <MdOutlineBedroomParent />,
-            () => setShowTotalModal(true)
-          )}
-          {renderCard(
-            "Total Vacant",
-            summary.beds.totalVacant || 0,
-            "#efe89e",
-            <MdOutlineBedroomParent />,
-            () => findVacantUnits()
-          )}
-
-          {renderCard(
-            "Pending Rents",
-            summary.rent.pending || 0,
-            "#ffe0e0",
-            <FiBarChart2 />,
-            () => setShowPendingRentModal(true)
-          )}
-
-          {renderCard(
-            "Upcoming Leaves",
-            futureLeaveCount,
-            "#fde68a",
-            <FiBarChart2 />,
-            () => setShowFutureLeaveModal(true)
-          )}
-
-          {renderCard(
-            "Light Bill Paid",
-            `${summary.light.paid || 0}`,
-            "#7897af",
-            <MdLightbulbOutline />
-          )}
-          {renderCard(
-            "Light Bill Pending",
-            `${summary.light.pending || 0}`,
-            "#f5d4a0",
-            <MdLightbulbOutline />
-          )}
-
-          {renderCard(
-            "Category Report",
-            "Download",
-            "#cebaed",
-            <MdOutlineReceiptLong />,
-            handleDownloadCategoryReport
-          )}
-
-          {renderCard(
-            "Maintenance Pending",
-            `${summary.maintenance.pending || 0}`,
-            "#afe6f3",
-            <MdOutlineReceiptLong />
-          )}
-        </section>
-
-        {/* WELCOME & BAR CHART */}
-        <section className="row g-3 mt-2 px-2">
-          <div className="col-12 col-lg-6">
-            <div className="bg-white p-3 rounded shadow-sm h-100 text-center">
-              <h1 className="text-primary pt-3">Welcome Admin</h1>
-              <p>
-                Today is <strong>{dayName}</strong>, {dateString},{" "}
-                <strong>{timeString}</strong>
-              </p>
-              <p className="text-muted">
-                This dashboard provides a complete overview of the hostel
-                management system including bed occupancy, rent collection, light
-                bill, and maintenance expenses.
-              </p>
-            </div>
+      <main className="md-shell">
+        <header className="md-header">
+          <div className="md-title-block">
+            <h1>Dashboard</h1>
+            <p>Hostel Management Overview</p>
           </div>
-          <div className="col-12 col-lg-6">
-            <div className="bg-white p-3 rounded shadow-sm h-100">
-              <h5 className="text-primary mb-3 text-center">
-                Overall Payment Status (%)
-              </h5>
+          <label className="md-search"><Search size={20} /><input aria-label="Search dashboard" placeholder="Search tenants, units, payments, documents..." /></label>
+          <button className="md-header-icon" aria-label="Notifications"><Bell size={21} /><i /></button>
+          <div className="md-admin"><div className="md-avatar">A</div><div><strong>Admin</strong><span>System Administrator</span></div><ChevronDown size={17} /></div>
+        </header>
+
+        <div className="md-content">
+          <section className="md-summary-grid" aria-label="Dashboard summary">
+            {dashboardCards.map(({ label, value, tone, icon: Icon, action, download }) => (
+              <button type="button" key={label} className={`md-summary-card ${tone}`} onClick={action} disabled={!action}>
+                <span className="md-summary-icon"><Icon /></span>
+                <span className="md-summary-copy"><small>{label}</small><strong>{value}</strong></span>
+                {download && <span className="md-download"><Download size={18} /></span>}
+              </button>
+            ))}
+          </section>
+
+          <section className="md-overview-grid">
+            <article className="md-panel md-welcome">
+              <div className="md-hostel-illustration"><img src={hostelWelcomeImage} alt="Hostel building" /></div>
+              <div className="md-welcome-copy"><h2>Welcome Admin <span>👋</span></h2><p className="md-welcome-time"><span className="md-clock">◷</span> Today is <strong>{dayName}, {dateString}, {timeString}</strong></p><p>Manage tenants, rent, light bill, maintenance, expenses and<br className="md-welcome-break" /> all hostel operations from one place.</p></div>
+            </article>
+
+            <article className="md-panel md-quick-panel">
+              <h3><Zap size={21} /> Quick Actions</h3>
+              <div className="md-quick-actions">
+                {[
+                  ["Add Tenant", UserPlus, "blue", openAddTenantFromDashboard],
+                  ["Record Payment", CreditCard, "green", openRentTrackerFromDashboard],
+                  ["Add Expense", FileText, "orange", () => openTrackerSectionFromDashboard("expenses")],
+                  ["Shift Bed", ArrowLeftRight, "purple", openRentTrackerFromDashboard],
+                  ["Add Light Bill", Zap, "cyan", () => openTrackerSectionFromDashboard("light")],
+                ].map(([label, Icon, tone, action]) => <button type="button" key={label} onClick={action}><span className={tone}><Icon /></span><small>{label}</small></button>)}
+              </div>
+            </article>
+
+            <article className="md-panel md-chart-panel">
+              <div className="md-chart-heading">
+                <h3><FiBarChart2 /> Overall Payment Status (%)</h3>
+                <div className="md-chart-legend" aria-label="Chart legend">
+                  <span><i className="paid" />Paid</span>
+                  <span><i className="pending" />Pending</span>
+                </div>
+              </div>
               {renderBarChart()}
-            </div>
-          </div>
-        </section>
+            </article>
+          </section>
 
-        {/* PIE CHARTS */}
-        {renderPieCharts()}
+          <section className="md-lower-grid">
+            <div className="md-status-grid">
+              {statusCards.map(({ title, icon: Icon, total, first, second, firstColor, secondColor }) => {
+                const cardTotal = Number(first[1]) + Number(second[1]);
+                const firstPct = percent(first[1], cardTotal);
+                return <article className="md-panel md-status-card" key={title}>
+                  <h3><Icon size={19} /> {title}</h3>
+                  <div className="md-status-body">
+                    <div className="md-donut" style={{ background: `conic-gradient(${firstColor} 0 ${firstPct}%, ${secondColor} ${firstPct}% 100%)` }}><span><strong>{total}</strong><small>Total</small></span></div>
+                    <div className="md-legend"><span><i style={{ background: firstColor }} />{first[0]}: <strong>{first[1]}</strong></span><span><i style={{ background: secondColor }} />{second[0]}: <strong>{second[1]}</strong></span></div>
+                  </div>
+                </article>;
+              })}
+
+              <article className="md-panel md-features">
+                <div className="md-panel-heading"><h3><Layers3 size={21} /> System Features</h3><span>All-in-one hostel management solution</span></div>
+                <div className="md-feature-grid">
+                  {[["Tenant Records", Users],["Documents",FileText],["Share Link",Share2],["Automated Reminders",Bell],["Reports Generation",FileBarChart],["Light Bill",Zap],["Maintenance Record",Wrench],["Staff Payment History",CreditCard],["Canteen",Utensils],["Chatbot",MessageCircle],["Payment Receive Messages",Mail],["Shift Bed",ArrowLeftRight]].map(([label, Icon]) => <div key={label}><Icon /><span>{label}</span></div>)}
+                </div>
+              </article>
+            </div>
+
+            <aside className="md-panel md-attention">
+              <h3><AlertCircle size={20} /> Needs Attention</h3>
+              {[
+                [CreditCard, `${summary.rent.pending || 0} pending rent payments`, () => setShowPendingRentModal(true)],
+                [Wrench, `${summary.maintenance.pending || 0} maintenance requests pending`, () => quickNavigate("maintenance", "/maintenance")],
+                [CalendarDays, `${futureLeaveCount} upcoming leave request`, () => setShowFutureLeaveModal(true)],
+                [Zap, `${summary.light.pending || 0} light bill pending`, () => quickNavigate("light", "/light-bill")],
+              ].map(([Icon, label, action]) => <button type="button" key={label} onClick={action}><Icon /><span>{label}</span><ChevronRight /></button>)}
+            </aside>
+          </section>
+        </div>
 
         {/* TOTAL MODAL */}
         {showTotalModal && (
           <div
-            className="modal d-block"
+            className="md-rent-modal-backdrop"
             tabIndex="-1"
-            style={{
-              background: "rgba(0,0,0,0.5)",
-              position: "fixed",
-              inset: 0,
-              zIndex: 9999,
+            role="presentation"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) setShowTotalModal(false);
             }}
           >
-            <div className="modal-dialog modal-md modal-dialog-centered">
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h5 className="modal-title">Total Count</h5>
+              <div className="md-rent-modal md-total-modal" role="dialog" aria-modal="true" aria-labelledby="total-count-title">
+                <div className="md-rent-modal-header">
+                  <span className="md-rent-modal-icon"><Layers3 size={22} /></span>
+                  <div><h2 id="total-count-title">Total Count</h2><p>Property capacity by unit type</p></div>
                   <button
                     type="button"
-                    className="modal-x-btn"
+                    className="md-rent-modal-close"
                     onClick={() => setShowTotalModal(false)}
                     aria-label="Close"
                   >
@@ -1696,17 +1727,16 @@ useEffect(() => {
                   </button>
                 </div>
 
-                <div className="modal-body">{renderTotalModalBody()}</div>
+                <div className="md-rent-modal-body">{renderTotalModalBody()}</div>
 
-                <div className="modal-footer">
+                <div className="md-rent-modal-footer">
                   <button
-                    className="btn btn-secondary"
+                    type="button"
                     onClick={() => setShowTotalModal(false)}
                   >
                     Close
                   </button>
                 </div>
-              </div>
             </div>
           </div>
         )}
@@ -1714,22 +1744,20 @@ useEffect(() => {
         {/* VACANT MODAL */}
         {showVacantModal && (
           <div
-            className="modal d-block"
+            className="md-rent-modal-backdrop"
             tabIndex="-1"
-            style={{
-              background: "rgba(0,0,0,0.5)",
-              position: "fixed",
-              inset: 0,
-              zIndex: 9999,
+            role="presentation"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) setShowVacantModal(false);
             }}
           >
-            <div className="modal-dialog modal-lg modal-dialog-centered">
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h5 className="modal-title">Total Vacant</h5>
+              <div className="md-rent-modal" role="dialog" aria-modal="true" aria-labelledby="total-vacant-title">
+                <div className="md-rent-modal-header">
+                  <span className="md-rent-modal-icon"><BedDouble size={22} /></span>
+                  <div><h2 id="total-vacant-title">Total Vacant</h2><p>Available beds, rooms and commercial units</p></div>
                   <button
                     type="button"
-                    className="modal-x-btn"
+                    className="md-rent-modal-close"
                     onClick={() => setShowVacantModal(false)}
                     aria-label="Close"
                   >
@@ -1737,20 +1765,19 @@ useEffect(() => {
                   </button>
                 </div>
 
-                <div className="modal-body">
+                <div className="md-rent-modal-body">
                   {renderVacantModalBody()}
                   
                 </div>
 
-                <div className="modal-footer">
+                <div className="md-rent-modal-footer">
                   <button
-                    className="btn btn-secondary"
+                    type="button"
                     onClick={() => setShowVacantModal(false)}
                   >
                     Close
                   </button>
                 </div>
-              </div>
             </div>
           </div>
         )}
@@ -1758,22 +1785,33 @@ useEffect(() => {
         {/* FUTURE LEAVE MODAL */}
         {showFutureLeaveModal && (
           <div
-            className="modal d-block"
+            className="md-leave-modal-backdrop"
             tabIndex="-1"
-            style={{
-              background: "rgba(0,0,0,0.5)",
-              position: "fixed",
-              inset: 0,
-              zIndex: 9999,
+            role="presentation"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) {
+                setShowFutureLeaveModal(false);
+              }
             }}
           >
-            <div className="modal-dialog modal-lg modal-dialog-centered">
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h5 className="modal-title">Upcoming Leave Tenants</h5>
+            <div
+              className="md-leave-modal"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="upcoming-leave-title"
+            >
+                <div className="md-leave-modal-header">
+                  <span className="md-leave-modal-icon" aria-hidden="true">
+                    <CalendarDays size={22} />
+                  </span>
+                  <div>
+                    <h2 id="upcoming-leave-title">Upcoming Leave Tenants</h2>
+                    <p>Tenants scheduled to leave after today</p>
+                  </div>
+                  <span className="md-leave-modal-badge">Leave Schedule</span>
                   <button
                     type="button"
-                    className="modal-x-btn"
+                    className="md-leave-modal-close"
                     onClick={() => setShowFutureLeaveModal(false)}
                     aria-label="Close"
                   >
@@ -1781,51 +1819,80 @@ useEffect(() => {
                   </button>
                 </div>
 
-                <div className="modal-body">
+                <div
+                  className={`md-leave-modal-body${
+                    futureLeaveTenants.length === 0 ? " is-empty" : ""
+                  }`}
+                >
                   {futureLeaveTenants.length === 0 ? (
-                    <p>No upcoming leave tenants.</p>
+                    <div className="md-leave-empty">
+                      <span aria-hidden="true"><CalendarDays size={28} /></span>
+                      <strong>No upcoming leaves</strong>
+                      <p>There are no tenants scheduled to leave right now.</p>
+                    </div>
                   ) : (
-                    <table className="table table-bordered">
-                      <thead>
-                        <tr>
-                          <th>Name</th>
-                          <th>Room</th>
-                          <th>Bed</th>
-                          <th>Leave Date</th>
-                          <th>Deposit</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {futureLeaveTenants.map((t, i) => {
-                          const { deposit } = calculateRefund(t);
-                          return (
-                            <tr key={t._id || i}>
-                              <td>{t.name}</td>
-                              <td>{t.roomNo}</td>
-                              <td>{t.bedNo}</td>
-                              <td>
-                                {new Date(t.leaveDate).toLocaleDateString()}
-                              </td>
-                              <td className="fw-semibold text-primary">
-                                {deposit.toLocaleString("en-IN")}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                    <div className="md-leave-table-wrap">
+                      <table className="md-leave-table">
+                        <thead>
+                          <tr>
+                            <th>Name</th>
+                            <th>Room</th>
+                            <th>Bed</th>
+                            <th>Leave Date</th>
+                            <th>Deposit</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {futureLeaveTenants.map((t, i) => {
+                            const { deposit } = calculateRefund(t);
+                            return (
+                              <tr key={t._id || i}>
+                                <td data-label="Name">
+                                  <span className="md-leave-tenant">
+                                    <span className="md-leave-avatar" aria-hidden="true">
+                                      {(t.name || "T").trim().charAt(0).toUpperCase()}
+                                    </span>
+                                    <strong>{t.name || "—"}</strong>
+                                  </span>
+                                </td>
+                                <td data-label="Room">
+                                  <span className="md-leave-unit-chip">{t.roomNo || "—"}</span>
+                                </td>
+                                <td data-label="Bed">
+                                  <span className="md-leave-bed-chip">{t.bedNo || "—"}</span>
+                                </td>
+                                <td data-label="Leave Date">
+                                  <span className="md-leave-date-chip">
+                                    <CalendarDays size={14} />
+                                    {new Date(t.leaveDate).toLocaleDateString("en-IN", {
+                                      day: "2-digit",
+                                      month: "short",
+                                      year: "numeric",
+                                    })}
+                                  </span>
+                                </td>
+                                <td data-label="Deposit">
+                                  <span className="md-leave-deposit">
+                                    ₹{deposit.toLocaleString("en-IN")}
+                                  </span>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
                   )}
                 </div>
 
-                <div className="modal-footer">
+                <div className="md-leave-modal-footer">
                   <button
-                    className="btn btn-secondary"
+                    type="button"
                     onClick={() => setShowFutureLeaveModal(false)}
                   >
                     Close
                   </button>
                 </div>
-              </div>
             </div>
           </div>
         )}
@@ -1834,23 +1901,24 @@ useEffect(() => {
         {/* PENDING RENT MODAL */}
         {showPendingRentModal && (
           <div
-            className="modal d-block"
+            className="md-rent-modal-backdrop"
             tabIndex="-1"
-            style={{
-              background: "rgba(0,0,0,0.5)",
-              position: "fixed",
-              inset: 0,
-              zIndex: 9999,
+            role="presentation"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) setShowPendingRentModal(false);
             }}
           >
-            <div className="modal-dialog modal-lg modal-dialog-centered">
-              <div className="modal-content">
-                <div className="modal-header">
-                  <h5 className="modal-title">Pending Rents</h5>
+              <div className="md-rent-modal" role="dialog" aria-modal="true" aria-labelledby="pending-rents-title">
+                <div className="md-rent-modal-header">
+                  <span className="md-rent-modal-icon"><CreditCard size={22} /></span>
+                  <div>
+                    <h2 id="pending-rents-title">Pending Rents</h2>
+                    <p>Review overdue rent payments by property type</p>
+                  </div>
 
                   <button
                     type="button"
-                    className="modal-x-btn"
+                    className="md-rent-modal-close"
                     onClick={() => setShowPendingRentModal(false)}
                     aria-label="Close"
                   >
@@ -1858,17 +1926,16 @@ useEffect(() => {
                   </button>
                 </div>
 
-                <div className="modal-body">{renderPendingRentModalBody()}</div>
+                <div className="md-rent-modal-body">{renderPendingRentModalBody()}</div>
 
-                <div className="modal-footer">
+                <div className="md-rent-modal-footer">
                   <button
-                    className="btn btn-secondary"
+                    type="button"
                     onClick={() => setShowPendingRentModal(false)}
                   >
                     Close
                   </button>
                 </div>
-              </div>
             </div>
           </div>
         )}

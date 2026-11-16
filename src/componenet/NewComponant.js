@@ -3735,6 +3735,25 @@ function getCycleRangeStr(tenant, cycleIndex) {
     setShowAddModal(true);
   };
 
+  const handledAddTenantRequestRef = useRef(null);
+
+  useEffect(() => {
+    if (!location.state?.openAddTenant) return;
+
+    const requestId = location.state.addTenantRequestId || "dashboard-add-tenant";
+    if (handledAddTenantRequestRef.current === requestId) return;
+    handledAddTenantRequestRef.current = requestId;
+
+    setActiveTab("rent");
+    openAddModal();
+
+    const { openAddTenant, addTenantRequestId, ...nextState } = location.state;
+    navigate(location.pathname, {
+      replace: true,
+      state: nextState,
+    });
+  }, [location.pathname, location.state, navigate]);
+
   const openQuickTenantModal = () => {
     setQuickTenantError("");
     setQuickTenantEditing(null);

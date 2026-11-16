@@ -1,4 +1,4 @@
-// src/pages/RoomManager.js
+﻿// src/pages/RoomManager.js
 import React, { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
@@ -6,9 +6,9 @@ import { API_BASE, api } from "../api";
 import { getAppBootstrap } from "../saasApi";
 import { allowedUnitTypes, getUnitLimits } from "../utils/subscriptionAccess";
 import {
-  FaArrowLeft,
   FaBed,
   FaBuilding,
+  FaCheckCircle,
   FaChevronDown,
   FaChevronUp,
   FaCube,
@@ -30,6 +30,8 @@ import UnitHistoryModal from "./UnitHistoryModal";
 import { SecurityPinStatusField, useSystemSecurityPinStatus } from "./SecurityPinSetup";
 import { getVisiblePropertyWings } from "../utils/propertyHierarchy";
 import propertyBuildingsArt from "../Pages/property-buildings1.png";
+import roomHeaderLeftArt from "../image/room1.png";
+import roomHeaderRightArt from "../image/room2.png";
 const ROOM_COLORS = [
   "#eef5ff",
   "#e8f8f5",
@@ -171,7 +173,7 @@ function getUnitLabel(value) {
 
 function getPlannedUnitLabel(value) {
   const type = normalizePropertyType(value);
-  if (type === "room") return "flats";
+  if (type === "room") return "rooms";
   if (type === "shop") return "shops";
   return "beds";
 }
@@ -239,11 +241,11 @@ function getSetupDetailLabels(value) {
 const FLAT_TYPE_OPTIONS = ["1RK", "1BHK", "2BHK", "3BHK"];
 
 
-// 🔵 Room color helper (safe – no side effects)
+// ?? Room color helper (safe – no side effects)
 
 
 
-// ✅ deterministic hash -> hue
+// ? deterministic hash -> hue
 function hashStr(s) {
   const str = String(s ?? "");
   let h = 2166136261; // FNV-1a
@@ -297,8 +299,7 @@ export default function RoomManager() {
   const [tenants, setTenants] = useState([]);
   const [unitHistoryTarget, setUnitHistoryTarget] = useState(null);
   const [unitLimits, setUnitLimits] = useState({ beds: 0, rooms: 0, shops: 0 });
-  const [flexibleTrial, setFlexibleTrial] = useState(false);
-  const [flexibleConfigured, setFlexibleConfigured] = useState(false);
+  const [unlimitedTrial, setUnlimitedTrial] = useState(false);
   const [allowedTypes, setAllowedTypes] = useState([]);
   const propertyTypeOptions = useMemo(
     () => PROPERTY_TYPE_OPTIONS.filter((option) => allowedTypes.some((type) => type.value === option.value)),
@@ -310,11 +311,11 @@ export default function RoomManager() {
   const [propertyWizardStep, setPropertyWizardStep] = useState(1);
   const [propertySetupMode, setPropertySetupMode] = useState("manual");
   const [copySourceName, setCopySourceName] = useState("");
+  const [copySourceType, setCopySourceType] = useState("");
   const [propertySaving, setPropertySaving] = useState(false);
   const [editingPropertyKey, setEditingPropertyKey] = useState("");
   const [addingNewPropertyName, setAddingNewPropertyName] = useState(false);
   const [propertyDraft, setPropertyDraft] = useState({ propertyType: "bed", name: "", wingNames: "", floorNames: "", floorNameInputs: [], wingFloors: {}, wingFloorInputs: {}, floorUnitCounts: {} });
-  const [floorEntry, setFloorEntry] = useState({ key: "", value: "", wingName: "" });
   const [floorSaving, setFloorSaving] = useState(false);
   const [floorPlanWarning, setFloorPlanWarning] = useState(null);
   const floorPlanResolverRef = React.useRef(null);
@@ -322,7 +323,7 @@ export default function RoomManager() {
   const [addingNewWing, setAddingNewWing] = useState(false);
   const [addingNewFloor, setAddingNewFloor] = useState(false);
 
-  // ✅ all typeable, including bedCategory
+  // ? all typeable, including bedCategory
   const [roomForm, setRoomForm] = useState({
     propertyType: "bed",
     category: "",
@@ -338,6 +339,7 @@ export default function RoomManager() {
     unitNumbers: [""],
     bedCount: 1,
     bedNumbers: [""],
+    bedCategories: [""],
   });
 
   const [showAddBedModal, setShowAddBedModal] = useState(false);
@@ -359,7 +361,7 @@ export default function RoomManager() {
   });
 
 
-  // 🔴 NEW: Delete bed modal state
+  // ?? NEW: Delete bed modal state
   const [showDeleteBedModal, setShowDeleteBedModal] = useState(false);
   const [deleteBedState, setDeleteBedState] = useState({
     roomId: "",
@@ -402,6 +404,7 @@ export default function RoomManager() {
   const [search, setSearch] = useState("");
   const [catFilter, setCatFilter] = useState("");
   const [propertyFilter, setPropertyFilter] = useState("bed");
+  const [buildingPropertyTab, setBuildingPropertyTab] = useState("All");
   const [wingFilter, setWingFilter] = useState("");
   const [floorFilter, setFloorFilter] = useState("");
   const [mobileSection, setMobileSection] = useState("room");
@@ -414,7 +417,6 @@ export default function RoomManager() {
   const categorySectionRef = React.useRef(null);
 
   const navigate = useNavigate();
-  const handleNavigation = (path) => navigate(path);
   const persistCategories = (nextCategories) => {
     const cleaned = mergeCategoryNames(nextCategories);
     setCategories(cleaned);
@@ -457,8 +459,7 @@ export default function RoomManager() {
       .then((bootstrap) => {
         setUnitLimits(getUnitLimits(bootstrap));
         setAllowedTypes(allowedUnitTypes(bootstrap));
-        setFlexibleConfigured(bootstrap.organization?.onboardingMode === "flexible" && Boolean(bootstrap.organization.unitCountsConfigured));
-        setFlexibleTrial(bootstrap.organization?.onboardingMode === "flexible" && !bootstrap.organization.unitCountsConfigured && !bootstrap.subscription?.planId && Number(bootstrap.subscription?.amount || 0) === 0);
+        setUnlimitedTrial(Boolean(bootstrap.units?.unlimited));
       })
       .catch(() => {
         setUnitLimits({ beds: 0, rooms: 0, shops: 0 });
@@ -809,11 +810,7 @@ export default function RoomManager() {
   const hasQuotaForType = (type) => {
     const key = quotaKeyForType(type);
     const limit = Number(unitLimits[key] || 0);
-    return flexibleConfigured ? unitUsage[key] < limit : limit <= 0 || unitUsage[key] < limit;
-  };
-  const introductoryLimitReached = flexibleTrial && unitUsage.beds + unitUsage.rooms + unitUsage.shops >= 10;
-  const promptUnitCounts = () => {
-    if (window.confirm("You have added 10 units. Set your unit counts in Profile to add more. Open Profile now?")) navigate("/profile");
+    return unlimitedTrial || limit <= 0 || unitUsage[key] < limit;
   };
   const hasReachedHostelBedLimit = (!hasQuotaForType("bed") && !hasReusableReservedUnit("bed")) || totalHostelBeds >= MAX_HOSTEL_BEDS;
   const canAddHostelBed = !hasReachedHostelBedLimit;
@@ -866,7 +863,6 @@ export default function RoomManager() {
   };
   const openQuickAdd = (requestedType = propertyFilter, preset = null) => {
     const type = normalizePropertyType(requestedType);
-    if (introductoryLimitReached) { promptUnitCounts(); return; }
     if (!hasQuotaForType(type) && !hasReusableReservedUnit(type)) {
       const key = quotaKeyForType(type);
       alert(`${getPropertyTypeLabel(type)} limit reached (${unitUsage[key]} / ${unitLimits[key]}). Add more units to your subscription to continue.`);
@@ -892,6 +888,7 @@ export default function RoomManager() {
       unitNumbers: [""],
       bedCount: 1,
       bedNumbers: [""],
+      bedCategories: [""],
     }));
     setShowQuickAddForm(true);
   };
@@ -957,8 +954,9 @@ export default function RoomManager() {
       wings: wingNames.map((wingName) => ({ name: wingName, floors: floorsByWing[wingName] || [] })),
       floors: wingNames.length ? [] : floorNames,
       floorUnitCounts: Object.fromEntries(Object.entries(propertyDraft.floorUnitCounts || {})
+        .filter(([key]) => propertyDraftFloorRows.some((row) => row.key === key))
         .filter(([, count]) => count !== "" && count !== null && count !== undefined)
-        .map(([key, count]) => [key, Math.min(5000, Math.max(0, Math.floor(Number(count) || 0)))])),
+        .map(([key, count]) => [key, Math.max(0, Math.floor(Number(count) || 0))])),
     };
     const oldLocation = propertyLocations.find((item) =>
       `${normalizePropertyType(item.propertyType)}::${normalizeCategoryName(item.name).toLowerCase()}` === editingPropertyKey
@@ -1013,7 +1011,12 @@ export default function RoomManager() {
       const targetCount = countForUnitFloor(targetLocationFor(unit), unit);
       return sum + Math.max(0, currentCount - targetCount);
     }, 0);
-    if (rowsToRelease > 0 && !window.confirm(`This change will remove ${rowsToRelease} pending unit row${rowsToRelease === 1 ? "" : "s"} from the floor plan and return that capacity to Unassigned. Completed units will stay. Continue?`)) return;
+    if (rowsToRelease > 0) {
+      const unitLabel = getPlannedUnitLabel(propertyType);
+      const locationLabel = `${name}${propertyDraftWingNames.length ? `, ${propertyDraftWingNames.length} wing${propertyDraftWingNames.length === 1 ? "" : "s"}` : ""}`;
+      const message = `You reduced the planned ${unitLabel} for ${locationLabel}. Saving will remove ${rowsToRelease} unassigned ${unitLabel} row${rowsToRelease === 1 ? "" : "s"} from its floor plan and return that capacity to Unassigned. Units that already have details will not be deleted. Do you want to save these changes?`;
+      if (!window.confirm(message)) return;
+    }
 
     try {
       setPropertySaving(true);
@@ -1061,50 +1064,6 @@ export default function RoomManager() {
       wingName: firstWing?.name || "",
       floorNo: firstFloor,
     });
-  };
-
-  const saveFloorToProperty = async (location, wingName) => {
-    const floorName = normalizeCategoryName(floorEntry.value);
-    if (!floorName) {
-      alert("Enter a floor name first.");
-      return;
-    }
-    const locationKey = `${normalizePropertyType(location.propertyType)}::${normalizeCategoryName(location.name).toLowerCase()}`;
-    const existingLocation = propertyLocations.find((item) => `${normalizePropertyType(item.propertyType)}::${normalizeCategoryName(item.name).toLowerCase()}` === locationKey) || location;
-    const currentFloors = wingName === "No Wing"
-      ? existingLocation.floors || []
-      : existingLocation.wings?.find((wing) => String(wing.name).toLowerCase() === String(wingName).toLowerCase())?.floors || [];
-    if (currentFloors.some((floor) => String(floor).trim().toLowerCase() === floorName.toLowerCase())) {
-      alert("That floor already exists in this wing.");
-      return;
-    }
-    const nextLocation = wingName === "No Wing"
-      ? { ...existingLocation, floors: mergeCategoryNames(existingLocation.floors || [], [floorName]) }
-      : {
-        ...existingLocation,
-        wings: (existingLocation.wings || []).map((wing) => String(wing.name).toLowerCase() === String(wingName).toLowerCase()
-          ? { ...wing, floors: mergeCategoryNames(wing.floors || [], [floorName]) }
-          : wing),
-      };
-    const nextLocations = propertyLocations.map((item) => `${normalizePropertyType(item.propertyType)}::${normalizeCategoryName(item.name).toLowerCase()}` === locationKey ? nextLocation : item);
-    try {
-      setFloorSaving(true);
-      const response = await axios.put(`${apiUrl}/property-locations`, { propertyLocations: nextLocations });
-      const savedLocations = Array.isArray(response.data?.propertyLocations) ? response.data.propertyLocations : nextLocations;
-      setPropertyLocations(savedLocations);
-      const structureKey = `${normalizePropertyType(location.propertyType)}::${normalizeCategoryName(location.name).toLowerCase()}`;
-      persistStructureDrafts((previous) => {
-        const current = previous[structureKey] || { wings: [], floorsNoWing: [], floorsByWing: {} };
-        return wingName === "No Wing"
-          ? { ...previous, [structureKey]: { ...current, floorsNoWing: mergeCategoryNames(current.floorsNoWing || [], [floorName]) } }
-          : { ...previous, [structureKey]: { ...current, floorsByWing: { ...(current.floorsByWing || {}), [wingName]: mergeCategoryNames(current.floorsByWing?.[wingName] || [], [floorName]) } } };
-      });
-      setFloorEntry({ key: "", value: "", wingName: "" });
-    } catch (error) {
-      alert(error.response?.data?.message || "Unable to add this floor.");
-    } finally {
-      setFloorSaving(false);
-    }
   };
 
   const deleteFloorFromProperty = async (location, wingName, floorName) => {
@@ -1187,6 +1146,7 @@ export default function RoomManager() {
     setPropertyWizardStep(1);
     setPropertySetupMode("manual");
     setCopySourceName("");
+    setCopySourceType("");
     setAddingNewPropertyName(false);
     setPropertyDraft({
       propertyType: normalizePropertyType(location.propertyType),
@@ -1207,6 +1167,7 @@ export default function RoomManager() {
     setPropertyWizardStep(1);
     setPropertySetupMode("manual");
     setCopySourceName("");
+    setCopySourceType("");
     setPropertyDraft({ propertyType: propertyFilter, name: "", wingNames: "", floorNames: "", floorNameInputs: [], wingFloors: {}, wingFloorInputs: {}, floorUnitCounts: {} });
     setShowPropertySetup(true);
   };
@@ -1225,18 +1186,8 @@ export default function RoomManager() {
     const unitNumbers = (roomForm.unitNumbers || []).slice(0, unitCount).map((number) => String(number || "").trim());
     const bedCount = Math.max(1, Number(roomForm.bedCount) || 1);
     const bedNumbers = (roomForm.bedNumbers || []).slice(0, bedCount).map((number) => String(number || "").trim());
-    let roomNo = enteredRoomNo;
-    if (propertyType === "bed" && bedCount > 1 && !roomNo) {
-      const usedRoomNumbers = new Set(readyRooms
-        .filter((room) => normalizePropertyType(room.propertyType) === "bed" &&
-          String(room.category || "").trim().toLowerCase() === category.toLowerCase() &&
-          String(room.floorNo || "").trim().toLowerCase() === floorNo.toLowerCase() &&
-          String(room.wingName || "").trim().toLowerCase() === wingName.toLowerCase())
-        .map((room) => String(room.roomNo || "").trim().toLowerCase()));
-      let sequence = 1;
-      while (usedRoomNumbers.has(`auto-${sequence}`)) sequence += 1;
-      roomNo = `AUTO-${sequence}`;
-    }
+    const bedCategories = (roomForm.bedCategories || []).slice(0, bedCount).map((category) => String(category || "").trim());
+    const roomNo = enteredRoomNo;
 
     if (!category) {
       alert(`Please enter ${getCategoryLabel(propertyType)}.`);
@@ -1270,13 +1221,12 @@ export default function RoomManager() {
       return;
     }
 
-    if (flexibleTrial && unitUsage.beds + unitUsage.rooms + unitUsage.shops + requestedCount > 10) { promptUnitCounts(); return; }
     const key = quotaKeyForType(propertyType);
     const reservedCapacity = propertyType === "bed"
       ? reusableHostelBedSlots.reduce((sum, room) => sum + Math.max(room.beds?.length || 0, 1), 0)
       : setupRooms.filter((room) => normalizePropertyType(room?.propertyType || "bed") === propertyType).length;
     const configuredLimit = Number(unitLimits[key] || 0);
-    const remainingQuota = configuredLimit > 0 ? Math.max(0, configuredLimit - unitUsage[key]) : Infinity;
+    const remainingQuota = unlimitedTrial || configuredLimit <= 0 ? Infinity : Math.max(0, configuredLimit - unitUsage[key]);
     const remainingCapacity = remainingQuota + reservedCapacity;
     if (requestedCount > remainingCapacity) {
       const capacityLabel = propertyType === "bed" ? "bed" : getUnitLabel(propertyType).toLowerCase();
@@ -1329,6 +1279,7 @@ export default function RoomManager() {
           propertyType,
           bedCount,
           bedNumbers,
+          bedCategories,
         });
         successfullyAdded = 1;
       } else {
@@ -1364,11 +1315,12 @@ export default function RoomManager() {
         roomNo: "",
         bedNo: "",
         bedCategory: "",
-        bedPrice: "", // ✅ reset
+        bedPrice: "", // ? reset
         unitCount: 1,
         unitNumbers: [""],
         bedCount: 1,
         bedNumbers: [""],
+        bedCategories: [""],
       });
 
       persistCategories([...buildingOptions, category]);
@@ -1388,6 +1340,7 @@ export default function RoomManager() {
         unitNumbers: [""],
         bedCount: 1,
         bedNumbers: [""],
+        bedCategories: [""],
       }));
 
       // Show the newly created property in the desktop list immediately.
@@ -1417,7 +1370,6 @@ export default function RoomManager() {
   /* -------- Bed operations -------- */
 
   const openAddBedModal = (room) => {
-    if (introductoryLimitReached) { promptUnitCounts(); return; }
     if (!canAddHostelBed) {
       alert("Hostel bed limit reached. Increase your subscription limit to add more beds.");
       return;
@@ -1430,7 +1382,6 @@ export default function RoomManager() {
   const addBedToRoom = async () => {
     if (!selectedRoom) return;
     const count = Math.max(1, Number(bedForm.bedCount) || 1);
-    if (flexibleTrial && unitUsage.beds + unitUsage.rooms + unitUsage.shops + count > 10) { promptUnitCounts(); return; }
     const bedNumbers = (bedForm.bedNumbers || []).slice(0, count).map((number) => String(number || "").trim());
     if (bedNumbers.length !== count || bedNumbers.some((number) => !number)) {
       alert("Enter a bed number for each bed.");
@@ -1448,7 +1399,7 @@ export default function RoomManager() {
     }
     const reservedSlots = reusableHostelBedSlots.length;
     const configuredBedLimit = Number(unitLimits.beds || 0);
-    const remainingPlanBeds = configuredBedLimit > 0 ? Math.max(0, configuredBedLimit - unitUsage.beds) : Infinity;
+    const remainingPlanBeds = unlimitedTrial || configuredBedLimit <= 0 ? Infinity : Math.max(0, configuredBedLimit - unitUsage.beds);
     const allowedBeds = Math.min(MAX_HOSTEL_BEDS - totalHostelBeds, remainingPlanBeds + reservedSlots);
     if (count > allowedBeds) {
       alert(allowedBeds > 0
@@ -1495,8 +1446,8 @@ export default function RoomManager() {
     setEditTarget({
       roomId,
       roomNo,
-      bedNo: String(bedNo ?? ""),                 // ✅ correct identifier
-      bedCategory: bedCategory ?? "",             // ✅ Upper/Lower
+      bedNo: String(bedNo ?? ""),                 // ? correct identifier
+      bedCategory: bedCategory ?? "",             // ? Upper/Lower
       price: currentPrice ?? "",
     });
     setShowEditModal(true);
@@ -1506,7 +1457,7 @@ export default function RoomManager() {
   const updateBedPrice = async () => {
     const isRoomEdit = propertyFilter === "room";
     const bedCategory = isRoomEdit ? undefined : (editTarget.bedCategory || "").trim();
-    // ✅ price can be blank => clear (backend will set null)
+    // ? price can be blank => clear (backend will set null)
     let priceToSend = undefined;
 
     const priceInput = String(editTarget.price ?? "").trim();
@@ -1728,6 +1679,23 @@ export default function RoomManager() {
   );
   const scopedRoomCount = scopedRooms.length;
   const scopedUnitCount = scopedRooms.reduce((sum, r) => sum + (r.beds?.length || 0), 0);
+  const plannedUnitCount = useMemo(() => propertyLocations
+    .filter((location) => normalizePropertyType(location?.propertyType) === propertyFilter)
+    .reduce((total, location) => {
+      const plannedForLocation = Object.entries(location?.floorUnitCounts || {}).reduce((sum, [key, value]) => {
+        const [wingName, ...floorParts] = String(key).split("::");
+        const floorNo = floorParts.join("::");
+        const planned = Math.max(0, Math.floor(Number(value) || 0));
+        const existing = rooms.filter((room) =>
+          normalizePropertyType(room?.propertyType) === propertyFilter &&
+          normalizeCategoryName(room?.category).toLowerCase() === normalizeCategoryName(location?.name).toLowerCase() &&
+          normalizeCategoryName(room?.wingName || "No Wing").toLowerCase() === normalizeCategoryName(wingName || "No Wing").toLowerCase() &&
+          normalizeCategoryName(room?.floorNo).toLowerCase() === normalizeCategoryName(floorNo).toLowerCase()
+        ).reduce((count, room) => count + (propertyFilter === "bed" ? (room?.beds?.length || 0) : 1), 0);
+        return sum + Math.max(0, planned - existing);
+      }, 0);
+      return total + plannedForLocation;
+    }, 0), [propertyLocations, propertyFilter, rooms]);
   const occupancyStats = useMemo(() => {
     const occupied = new Set();
 
@@ -1752,86 +1720,75 @@ export default function RoomManager() {
       }
     });
 
-    const total = propertyFilter === "bed" ? scopedUnitCount : scopedRoomCount;
+    const total = (propertyFilter === "bed" ? scopedUnitCount : scopedRoomCount) + plannedUnitCount;
     const occupiedCount = Math.min(occupied.size, total);
     return { total, occupied: occupiedCount, vacant: Math.max(total - occupiedCount, 0) };
-  }, [tenants, scopedRooms, scopedUnitCount, propertyFilter]);
-  const statsMeta = useMemo(() => {
-    if (propertyFilter === "shop") {
-      return {
-        heroLabel: "Shops",
-        heroValue: scopedRoomCount,
-        heroSubtext: `${scopedUnitCount} shop units total`,
-        primaryLabel: "Total Shops",
-        primaryValue: scopedRoomCount,
-        primaryHelp: "Managed shops",
-        secondaryLabel: "Total Shop Units",
-        secondaryValue: scopedUnitCount,
-        secondaryHelp: "Across all shops",
-      };
-    }
+  }, [tenants, scopedRooms, scopedUnitCount, scopedRoomCount, propertyFilter, plannedUnitCount]);
+  const totalPropertyBuildings = propertyLocations.filter((location) => normalizePropertyType(location.propertyType) === propertyFilter).length;
+  const occupancyPercent = occupancyStats.total > 0 ? Math.round((occupancyStats.occupied / occupancyStats.total) * 100) : 0;
+  const occupancyUnitLabel = propertyFilter === "bed" ? "Beds" : propertyFilter === "shop" ? "Shops" : "Rooms";
+  const summaryCards = propertyFilter === "bed"
+    ? [
+      { icon: <FaBuilding />, label: "Total Rooms", value: scopedRoomCount, tone: "rooms" },
+      { icon: <FaBed />, label: "Total Beds", value: occupancyStats.total, tone: "beds" },
+      { icon: <FaCheckCircle />, label: "Occupied Beds", value: occupancyStats.occupied, detail: `(${occupancyPercent}%)`, tone: "occupied" },
+      { icon: <FaBed />, label: "Available Beds", value: occupancyStats.vacant, tone: "vacant" },
+    ]
+    : [
+      { icon: <FaBuilding />, label: "Total Properties", value: totalPropertyBuildings, tone: "rooms" },
+      { icon: propertyFilter === "shop" ? <FaBuilding /> : <FaBed />, label: propertyFilter === "shop" ? "Total Shops" : "Total Rooms", value: occupancyStats.total, tone: "beds" },
+      { icon: <FaCheckCircle />, label: `Occupied ${occupancyUnitLabel}`, value: occupancyStats.occupied, detail: `(${occupancyPercent}%)`, tone: "occupied" },
+      { icon: <FaBed />, label: `Available ${occupancyUnitLabel}`, value: occupancyStats.vacant, tone: "vacant" },
+    ];
 
-    if (propertyFilter === "room") {
-      return {
-        heroLabel: "Rooms",
-        heroValue: scopedRoomCount,
-        heroSubtext: `${scopedUnitCount} room units total`,
-        primaryLabel: "Total Rooms",
-        primaryValue: scopedRoomCount,
-        primaryHelp: "Managed rooms",
-        secondaryLabel: "Total Room Units",
-        secondaryValue: scopedUnitCount,
-        secondaryHelp: "Across all rooms",
-      };
-    }
-
-    return {
-      heroLabel: "Rooms",
-      heroValue: scopedRoomCount,
-      heroSubtext: `${scopedUnitCount} beds total`,
-      primaryLabel: "Total Rooms",
-      primaryValue: scopedRoomCount,
-      primaryHelp: "Managed rooms",
-      secondaryLabel: "Total Beds",
-      secondaryValue: scopedUnitCount,
-      secondaryHelp: "Across all floors",
-    };
-  }, [propertyFilter, scopedRoomCount, scopedUnitCount]);
+  const normalizeSearchText = (value) => String(value ?? "").normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+  const searchMatchesRoom = (room, query = search) => {
+    const terms = normalizeSearchText(query).split(/\s+/).filter(Boolean);
+    if (!terms.length) return true;
+    const roomId = String(room?._id || "");
+    const roomNo = normalizeSearchText(room?.roomNo);
+    const building = normalizeSearchText(room?.category || room?.buildingName || room?.propertyName);
+    const linkedTenants = (tenants || []).filter((tenant) => {
+      const tenantRoomId = tenant?.roomId?._id || tenant?.roomId || tenant?.room?._id || tenant?.room;
+      if (tenantRoomId && roomId && String(tenantRoomId) === roomId) return true;
+      const tenantRoomNo = normalizeSearchText(tenant?.roomNo || tenant?.roomId?.roomNo);
+      const tenantBuilding = normalizeSearchText(tenant?.buildingName || tenant?.category);
+      return Boolean(roomNo && tenantRoomNo === roomNo && (!tenantBuilding || tenantBuilding === building));
+    });
+    const occupied = linkedTenants.some((tenant) => !tenantHasLeft(tenant));
+    const values = [
+      room?.category, room?.buildingName, room?.propertyName,
+      room?.propertyType, getPropertyTypeLabel(room?.propertyType),
+      room?.roomNo, `room ${room?.roomNo}`, `shop ${room?.roomNo}`,
+      room?.floorNo, floorLabelFromKey(normalizeFloorKey(room?.floorNo)), `floor ${room?.floorNo}`,
+      room?.wingName, `wing ${room?.wingName}`,
+      room?.flatType, room?.roomCategory, room?.meterNo, room?.lastMeterReading,
+      room?.price, room?.rent, room?.rentAmount, room?.monthlyRent,
+      room?.tenantName, room?.tenantMobile,
+      room?.status, occupied ? "occupied rented" : "available vacant",
+      ...(room?.beds || []).flatMap((bed) => [bed?.bedNo, bed?.bedCategory, bed?.price, bed?.status]),
+      ...linkedTenants.flatMap((tenant) => [tenant?.name, tenant?.fullName, tenant?.tenantName, tenant?.mobile, tenant?.mobileNumber, tenant?.phone, tenant?.email]),
+    ];
+    const searchableText = normalizeSearchText(values.join(" "));
+    return terms.every((term) => searchableText.includes(term));
+  };
 
   const baseFiltered = useMemo(() => {
-    const q = (search || "").toLowerCase();
     let list = readyRooms.filter(
-      (r) => normalizePropertyType(r.propertyType || "bed") === propertyFilter
+      (room) => normalizePropertyType(room.propertyType || "bed") === propertyFilter
     );
 
     if (catFilter) {
-      list = list.filter((r) => (r.category || "") === catFilter);
+      list = list.filter((room) => normalizeCategoryName(room.category) === normalizeCategoryName(catFilter));
     }
     if (wingFilter) {
-      list = list.filter((r) => String(r.wingName || "").trim() === wingFilter);
+      list = list.filter((room) => normalizeCategoryName(room.wingName) === normalizeCategoryName(wingFilter));
     }
     if (floorFilter) {
-      list = list.filter((r) => String(r.floorNo || "").trim() === floorFilter);
+      list = list.filter((room) => normalizeCategoryName(room.floorNo) === normalizeCategoryName(floorFilter));
     }
-    if (!q) return list;
-    return list.filter((r) => {
-      const inRoom = String(r.roomNo).toLowerCase().includes(q);
-      const inFloor =
-        (r.floorNo || "").toLowerCase().includes(q) ||
-        floorLabelFromKey(normalizeFloorKey(r.floorNo)).toLowerCase().includes(q);
-      const inCat = (r.category || "").toLowerCase().includes(q);
-      const inWing = String(r.wingName || "").toLowerCase().includes(q);
-      const inFlatType = String(r.flatType || "").toLowerCase().includes(q);
-      const inBeds = (r.beds || []).some(
-        (b) =>
-          String(b.bedNo).toLowerCase().includes(q) ||
-          String(b.bedCategory || "").toLowerCase().includes(q) ||
-          String(b.price ?? "").toLowerCase().includes(q)
-      );
-      return inRoom || inFloor || inCat || inWing || inFlatType || inBeds;
-    });
-  }, [readyRooms, search, catFilter, wingFilter, floorFilter, propertyFilter]);
-
+    return list.filter((room) => searchMatchesRoom(room, search));
+  }, [readyRooms, search, catFilter, wingFilter, floorFilter, propertyFilter, tenants]);
   const displayedRooms = useMemo(() => {
     return [...baseFiltered].sort((a, b) => {
       const categoryCompare = String(a?.category || "").localeCompare(
@@ -1922,7 +1879,9 @@ export default function RoomManager() {
         floorNo: pending && !plannedPending ? "" : String(unit?.floorNo || ""),
         flatType: pending ? "" : String(unit?.flatType || ""),
         roomNo: pending ? "" : String(unit?.roomNo || ""),
-        bedNo: String(firstBed?.bedNo || ""),
+        // Planned placeholders may contain an internal PENDING-* token. Keep
+        // the user-facing field blank so the real bed number is entered here.
+        bedNo: pending ? "" : String(firstBed?.bedNo || ""),
         meterNo: pending ? "" : String(unit?.meterNo || ""),
         lastMeterReading: unit?.lastMeterReading == null ? "" : String(unit.lastMeterReading),
         bedCategory:
@@ -1989,8 +1948,6 @@ export default function RoomManager() {
     const flatType = propertyType === "room" ? normalizeCategoryName(setupForm.flatType) : "";
     const bedNo = String(setupForm.bedNo || "").trim();
     const meterNo = String(setupForm.meterNo || "").trim();
-    const priceInput = String(setupForm.price ?? "").trim();
-    const price = priceInput === "" ? null : Number(priceInput);
     const meterReading = setupForm.lastMeterReading === "" ? null : Number(setupForm.lastMeterReading);
 
     if (!category || !floorNo || !roomNo) {
@@ -2007,16 +1964,8 @@ export default function RoomManager() {
       return;
     }
 
-    // Mobile parity:
-    // - Hostel room details are edited separately from individual bed price/category.
-    // - Residential/Commercial units keep their monthly rent on the primary unit slot.
-    // - The primary slot can be saved without a price for every unit type.
+    // Rent is assigned when adding a tenant, so unit setup does not edit rates.
     const shouldUpdatePrimarySlot = isPendingSetup || propertyType !== "bed";
-
-    if (shouldUpdatePrimarySlot && priceInput !== "" && (!Number.isFinite(price) || price < 0)) {
-      alert("Please enter a valid monthly rent or leave it blank.");
-      return;
-    }
 
     if (setupForm.lastMeterReading !== "" && (!Number.isFinite(meterReading) || meterReading < 0)) {
       alert("Please enter a valid last meter reading.");
@@ -2075,7 +2024,6 @@ export default function RoomManager() {
 
       if (shouldUpdatePrimarySlot) {
         await axios.put(`${apiUrl}/${updated.data?._id || setupTarget._id}/bed/${primaryBedNo}`, {
-          price,
           bedCategory,
             ...(propertyType === "bed" ? { newBedNo: bedNo } : {}),
         });
@@ -2226,7 +2174,7 @@ export default function RoomManager() {
     }
 
     try {
-      // ✅ IMPORTANT: use room._id (not roomNo)
+      // ? IMPORTANT: use room._id (not roomNo)
       await axios.put(`${apiUrl}/${room._id}`, { category });
 
       persistCategories([...categories, category]);
@@ -2436,14 +2384,15 @@ export default function RoomManager() {
               {FLAT_TYPE_OPTIONS.map((flatType) => <option key={flatType} value={flatType}>{flatType}</option>)}
             </select>}
             {roomForm.propertyType === "bed" ? <>
-              {Number(roomForm.bedCount) <= 1 ? <input className="form-control" placeholder="Room No (e.g., 101)" value={roomForm.roomNo} onChange={(event) => setRoomForm((prev) => ({ ...prev, roomNo: event.target.value }))} /> : <small className="text-muted">Room number will be assigned automatically for bulk bed entry.</small>}
+              <label className="small fw-semibold mb-0">Room number</label>
+              <input className="form-control" placeholder="Room No (e.g., 101)" value={roomForm.roomNo} onChange={(event) => setRoomForm((prev) => ({ ...prev, roomNo: event.target.value }))} />
               <label className="small fw-semibold mb-0">Number of beds</label>
               <input type="number" min="1" max={MAX_HOSTEL_BEDS} className="form-control" value={roomForm.bedCount} onChange={(event) => {
                 const count = Math.min(MAX_HOSTEL_BEDS, Math.max(1, Number(event.target.value) || 1));
-                setRoomForm((prev) => ({ ...prev, bedCount: count, roomNo: count > 1 ? "" : prev.roomNo, bedNumbers: Array.from({ length: count }, (_, index) => prev.bedNumbers?.[index] || "") }));
+                setRoomForm((prev) => ({ ...prev, bedCount: count, bedNumbers: Array.from({ length: count }, (_, index) => prev.bedNumbers?.[index] || ""), bedCategories: Array.from({ length: count }, (_, index) => prev.bedCategories?.[index] || "") }));
               }} />
               <div className="d-grid" style={{ gap: "8px" }}>
-                {Array.from({ length: Math.max(1, Number(roomForm.bedCount) || 1) }, (_, index) => <input key={`new-bed-${index}`} className="form-control" placeholder={`Bed No. ${index + 1} (e.g., B${index + 1})`} value={roomForm.bedNumbers?.[index] || ""} onChange={(event) => setRoomForm((prev) => ({ ...prev, bedNumbers: prev.bedNumbers.map((number, numberIndex) => numberIndex === index ? event.target.value : number) }))} />)}
+                {Array.from({ length: Math.max(1, Number(roomForm.bedCount) || 1) }, (_, index) => <div className="room-manager-bulk-bed-row" key={`bed-entry-${index}`}><input className="form-control" aria-label={`Bed number ${index + 1}`} placeholder={`Bed No. ${index + 1} (e.g., B${index + 1})`} value={roomForm.bedNumbers?.[index] || ""} onChange={(event) => setRoomForm((prev) => ({ ...prev, bedNumbers: prev.bedNumbers.map((number, numberIndex) => numberIndex === index ? event.target.value : number) }))} /><input className="form-control" aria-label={`Category for bed ${index + 1}`} placeholder={`Category for Bed ${index + 1} (e.g., Upper, Lower)`} value={roomForm.bedCategories?.[index] || ""} onChange={(event) => setRoomForm((prev) => ({ ...prev, bedCategories: prev.bedCategories.map((category, categoryIndex) => categoryIndex === index ? event.target.value : category) }))} /></div>)}
               </div>
             </> : <>
               <label className="small fw-semibold mb-0">Number of {unitLabelTitle.toLowerCase()}s</label>
@@ -2463,16 +2412,16 @@ export default function RoomManager() {
   const renderDesktopQuickAddModal = () =>
     renderModal(
       <>
-      <div style={modalBackdropStyle}>
+      <div className="room-manager-add-unit-backdrop" style={modalBackdropStyle}>
         <div
-          className="modal-dialog modal-dialog-centered room-manager-quickadd-dialog"
+          className="modal-dialog modal-dialog-centered room-manager-quickadd-dialog room-manager-add-unit-dialog"
           style={{ width: "100%", maxWidth: "720px", margin: "0 12px" }}
           onClick={(e) => e.stopPropagation()}
           role="dialog"
           aria-modal="true"
         >
           <div
-            className="modal-content room-manager-quickadd-modal"
+            className="modal-content room-manager-quickadd-modal room-manager-add-unit-modal"
             style={{
               maxHeight: "calc(100vh - 24px)",
               display: "flex",
@@ -2482,11 +2431,11 @@ export default function RoomManager() {
               overflow: "hidden",
             }}
           >
-            <div className="modal-header bg-white sticky-top py-2 px-3 room-manager-quickadd-header" style={{ zIndex: 1 }}>
+            <div className="modal-header sticky-top py-2 px-3 room-manager-quickadd-header room-manager-add-unit-header" style={{ zIndex: 1 }}>
               <h5 className="modal-title mb-0">Add Unit</h5>
               <button
                 type="button"
-                className="room-manager-quickadd-close"
+                className="room-manager-quickadd-close room-manager-add-unit-close"
                 onClick={() => { setShowQuickAddForm(false); setQuickAddNotice(""); }}
                 aria-label="Close Add Unit modal"
               >
@@ -2494,7 +2443,7 @@ export default function RoomManager() {
               </button>
             </div>
 
-            <div className="modal-body bg-white px-3 py-3 room-manager-quickadd-body" style={{ overflowY: "auto" }}>
+            <div className="modal-body px-3 py-3 room-manager-quickadd-body room-manager-add-unit-body" style={{ overflowY: "auto" }}>
               <div className="d-grid room-manager-quickadd-form" style={{ gap: "10px" }}>
                 <select
                   className="form-select"
@@ -2519,7 +2468,7 @@ export default function RoomManager() {
 
               </div>
             </div>
-            <div className="modal-footer bg-white d-flex justify-content-end gap-2 px-3 py-3 room-manager-quickadd-footer">
+            <div className="modal-footer d-flex justify-content-end gap-2 px-3 py-3 room-manager-quickadd-footer room-manager-add-unit-footer">
               <button type="button" className="btn btn-outline-secondary" onClick={() => { setShowQuickAddForm(false); setQuickAddNotice(""); }}>Cancel</button>
               <button type="button" className="btn px-3 text-white" style={{ backgroundColor: "#5f7dfc" }} onClick={addRoom}>Add</button>
             </div>
@@ -2528,7 +2477,7 @@ export default function RoomManager() {
       </div>
       {quickAddNotice && <div role="presentation" onClick={() => setQuickAddNotice("")} style={{ position: "fixed", inset: 0, zIndex: 12000, display: "grid", placeItems: "center", padding: 20, background: "rgba(15, 23, 42, 0.42)" }}>
         <section role="alertdialog" aria-modal="true" aria-labelledby="quick-add-success-title" aria-describedby="quick-add-success-message" onClick={(event) => event.stopPropagation()} style={{ width: "min(440px, 100%)", borderRadius: 16, padding: 26, background: "#fff", boxShadow: "0 20px 60px rgba(15, 23, 42, 0.28)", textAlign: "center" }}>
-          <div aria-hidden="true" style={{ width: 54, height: 54, margin: "0 auto 14px", borderRadius: "50%", display: "grid", placeItems: "center", color: "#15803d", background: "#dcfce7", fontSize: 30, fontWeight: 700 }}>✓</div>
+          <div aria-hidden="true" style={{ width: 54, height: 54, margin: "0 auto 14px", borderRadius: "50%", display: "grid", placeItems: "center", color: "#15803d", background: "#dcfce7", fontSize: 30, fontWeight: 700 }}>?</div>
           <h4 id="quick-add-success-title" style={{ margin: "0 0 8px", color: "#166534" }}>Unit added successfully</h4>
           <p id="quick-add-success-message" style={{ margin: "0 0 22px", color: "#475569" }}>{quickAddNotice}</p>
           <button type="button" className="btn btn-primary" onClick={() => setQuickAddNotice("")}>Continue adding units</button>
@@ -2553,23 +2502,16 @@ export default function RoomManager() {
             {setupRoomsForFilter.map((room, index) => (
               <article key={room._id || room.roomNo} className="room-manager-mobile-room-card">
                 <div className="room-manager-mobile-room-head">
-                  <div style={{ flex: 1, minWidth: 0 }}>
+                  <button type="button" className="room-manager-pending-unit-copy" style={{ flex: 1, minWidth: 0 }} onClick={() => openSetupUnitModal(room)} aria-label={`Add details for ${getUnitLabel(room.propertyType).toLowerCase()}`}>
                     <span className="roomNoPill room-manager-mobile-room-pill">
-                      {getSetupUnitTitle(room, index)}
+                      {getUnitLabel(room.propertyType)} details needed
                     </span>
                     <div className="room-manager-mobile-room-meta">
-                      {getSetupHelpText(room)}
+                      Tap to add the unit number and details
                     </div>
-                  </div>
+                  </button>
                   <span className="badge bg-warning text-dark">Pending</span>
                 </div>
-                <button
-                  type="button"
-                  className="room-manager-mobile-room-action room-manager-mobile-room-action--primary"
-                  onClick={() => openSetupUnitModal(room)}
-                >
-                  <span>Set details</span>
-                </button>
               </article>
             ))}
           </div>
@@ -2603,21 +2545,14 @@ export default function RoomManager() {
                   <th>Unit</th>
                   <th>Type</th>
                   <th>Needed details</th>
-                  <th className="text-end">Action</th>
                 </tr>
               </thead>
               <tbody>
                 {setupRoomsForFilter.map((room, index) => (
                   <tr key={room._id || room.roomNo}>
-                    <td className="fw-semibold">{getSetupUnitTitle(room, index)}</td>
+                    <td><button type="button" className="room-manager-pending-unit-copy is-table" onClick={() => openSetupUnitModal(room)}>{getUnitLabel(room.propertyType)} details needed</button></td>
                     <td>{getPropertyTypeLabel(room.propertyType)}</td>
                     <td className="text-muted">{getSetupHelpText(room)}</td>
-                    <td className="text-end">
-                      <button className="btn btn-sm btn-outline-primary" onClick={() => openSetupUnitModal(room)}>
-                        <FaEdit className="me-2" />
-                        Set details
-                      </button>
-                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -2692,15 +2627,37 @@ export default function RoomManager() {
 
   const renderPropertyHierarchy = (mobile = false) => {
     const selectedType = normalizePropertyType(propertyFilter);
+    const buildingTabNames = [...new Set([
+      ...propertyLocations
+        .filter((location) => normalizePropertyType(location.propertyType) === selectedType)
+        .map((location) => String(location.name || "").trim()),
+      ...readyRooms
+        .filter((room) => normalizePropertyType(room.propertyType || "bed") === selectedType)
+        .map((room) => String(room.category || "").trim()),
+      ...setupRooms
+        .filter((room) => normalizePropertyType(room.propertyType || "bed") === selectedType)
+        .map((room) => String(room.category || "").trim()),
+    ].filter(Boolean))].sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    const selectedBuildingTab = buildingTabNames.includes(buildingPropertyTab) ? buildingPropertyTab : "All";
     const locations = propertyLocations.filter((location) =>
       normalizePropertyType(location.propertyType) === selectedType &&
       (!catFilter || normalizeCategoryName(location.name).toLowerCase() === normalizeCategoryName(catFilter).toLowerCase())
     );
+    const locationMatchesSearch = (location) => {
+      const terms = normalizeSearchText(search).split(/\s+/).filter(Boolean);
+      if (!terms.length) return true;
+      const structure = getVisiblePropertyWings(location).flatMap((wing) => [
+        wing.name,
+        ...(wing.floors || []).map((floor) => `floor ${floor}`),
+      ]);
+      const text = normalizeSearchText([location.name, ...structure].join(" "));
+      return terms.every((term) => text.includes(term));
+    };
     const seen = new Set(locations.map((location) => normalizeCategoryName(location.name).toLowerCase()));
     const hierarchy = [
       ...locations.map((location) => ({ ...location, units: [
         ...displayedRooms.filter((room) => normalizePropertyType(room.propertyType) === selectedType && normalizeCategoryName(room.category).toLowerCase() === normalizeCategoryName(location.name).toLowerCase()),
-        ...setupRooms.filter((room) => room.planGenerated && normalizePropertyType(room.propertyType) === selectedType && normalizeCategoryName(room.category).toLowerCase() === normalizeCategoryName(location.name).toLowerCase()),
+        ...setupRooms.filter((room) => room.planGenerated && normalizePropertyType(room.propertyType) === selectedType && normalizeCategoryName(room.category).toLowerCase() === normalizeCategoryName(location.name).toLowerCase() && searchMatchesRoom(room, search)),
       ] })),
       ...groupedDisplayedRooms.filter((group) => !seen.has(normalizeCategoryName(group.building).toLowerCase())).map((group) => ({
         propertyType: selectedType,
@@ -2709,13 +2666,27 @@ export default function RoomManager() {
         floors: [],
         units: group.wings.flatMap((wing) => wing.floors.flatMap((floor) => floor.units)),
       })),
-    ].filter((location) => getVisiblePropertyWings(location, wingFilter, floorFilter).length > 0);
+    ].filter((location) =>
+      (selectedBuildingTab === "All" || normalizeCategoryName(location.name).toLowerCase() === normalizeCategoryName(selectedBuildingTab).toLowerCase()) &&
+      (locationMatchesSearch(location) || searchMatchesRoom({ category: location.name }, search) || location.units.some((room) => searchMatchesRoom(room, search))) &&
+      getVisiblePropertyWings(location, wingFilter, floorFilter).length > 0
+    );
 
     const unitCountFor = (units) => selectedType === "bed"
       ? units.reduce((sum, room) => sum + (room.beds?.length || 0), 0)
       : units.length;
+    const hierarchyUnitLabel = selectedType === "bed" ? "bed" : selectedType === "shop" ? "shop" : "room";
+    const hierarchyUnitPluralLabel = getPlannedUnitLabel(selectedType);
     const isOccupied = (room) => (tenants || []).some((tenant) => {
       if (tenantHasLeft(tenant)) return false;
+      const tenantRoomId = tenant?.roomId?._id || tenant?.roomId || tenant?.room?._id || tenant?.room;
+      if (tenantRoomId && String(tenantRoomId) === String(room?._id)) return true;
+      const tenantRoomNo = String(tenant?.roomNo || tenant?.roomId?.roomNo || "").trim();
+      const tenantProperty = String(tenant?.buildingName || tenant?.category || "").trim().toLowerCase();
+      return Boolean(tenantRoomNo && tenantRoomNo === String(room?.roomNo || "").trim() && (!tenantProperty || tenantProperty === String(room?.category || "").trim().toLowerCase()));
+    });
+    const isBedOccupied = (room, bedNo) => (tenants || []).some((tenant) => {
+      if (tenantHasLeft(tenant) || String(tenant?.bedNo || "").trim().toLowerCase() !== String(bedNo || "").trim().toLowerCase()) return false;
       const tenantRoomId = tenant?.roomId?._id || tenant?.roomId || tenant?.room?._id || tenant?.room;
       if (tenantRoomId && String(tenantRoomId) === String(room?._id)) return true;
       const tenantRoomNo = String(tenant?.roomNo || tenant?.roomId?.roomNo || "").trim();
@@ -2727,12 +2698,19 @@ export default function RoomManager() {
     return (
       <section className="room-manager-hierarchy card border-0 shadow-sm mb-3">
         <div className="card-body">
-          {mobile ? <div className="room-manager-hierarchy-heading d-flex align-items-center justify-content-between gap-3 flex-wrap mb-3">
-            <div className="room-manager-hierarchy-heading-copy"><span className="room-manager-hierarchy-heading-icon"><FaBuilding /></span><div><h5 className="fw-bold mb-1">Properties / Buildings</h5><div className="text-muted small">Property → wing → floor → {getUnitLabel(selectedType).toLowerCase()}</div></div></div>
-            <button type="button" className="btn btn-sm btn-outline-primary room-manager-add-property-button" onClick={openPropertyCreate}><FaPlus className="me-1" />Add Property</button>
-          </div> : <div className="d-flex align-items-center justify-content-between gap-3 flex-wrap mb-3">
-            <div><h5 className="fw-bold mb-1">Properties / Buildings</h5><div className="text-muted small">Property → wing → floor → {getUnitLabel(selectedType).toLowerCase()}</div></div>
-            <button type="button" className="btn btn-sm btn-outline-primary" onClick={openPropertyCreate}><FaPlus className="me-1" />Add property</button>
+         
+          <header className={`room-manager-hierarchy-hero${mobile ? " is-compact" : ""}`}>
+            <div className="room-manager-hierarchy-hero-art"><img src={roomHeaderLeftArt} alt="Apartment buildings" /></div>
+            <div className="room-manager-hierarchy-hero-title">
+              <div classname="box1" style={{borderRadius: '12%', background: '#f1f7ffbd', padding: '10px', textAlign: 'justify'}}><h2>Properties / Buildings</h2><div className="room-manager-hierarchy-hero-breadcrumb"><FaBuilding /><span>Property ? wing ? floor ? {hierarchyUnitLabel}</span></div><p>Manage and organize all your properties, wings and units in one place.</p></div>
+            </div>
+            <img className="room-manager-hierarchy-hero-bed-art" src={roomHeaderRightArt} alt="Comfortable room" />
+          </header>
+
+
+              {buildingTabNames.length > 0 && <div className="room-manager-building-tabs" role="tablist" aria-label="Filter by property name">
+            <button type="button" role="tab" aria-selected={selectedBuildingTab === "All"} className={selectedBuildingTab === "All" ? "is-active" : ""} onClick={() => setBuildingPropertyTab("All")}><span className="room-manager-building-tab-icon"><FaLayerGroup /></span><span className="room-manager-building-tab-copy"><strong>All properties</strong><small>View every building</small></span></button>
+            {buildingTabNames.map((name) => <button type="button" role="tab" aria-selected={selectedBuildingTab === name} className={selectedBuildingTab === name ? "is-active" : ""} key={name} onClick={() => setBuildingPropertyTab(name)}><span className="room-manager-building-tab-icon"><FaBuilding /></span><span className="room-manager-building-tab-copy"><strong>{name}</strong><small>Property building</small></span></button>)}
           </div>}
           <div className="room-manager-hierarchy-list">
             {!hierarchy.length && (mobile ? <div className="room-manager-hierarchy-empty-state">
@@ -2748,31 +2726,23 @@ export default function RoomManager() {
               return <article className="room-manager-hierarchy-property" key={`${selectedType}:${location.name}:${propertyIndex}`}>
                 <div className="room-manager-hierarchy-property-head">
                   <div className="room-manager-hierarchy-property-title"><span className="room-manager-hierarchy-property-icon"><FaBuilding /></span>
-                  <div><strong  style={{ textAlign: "justify" }}>{location.name}</strong><small><b><FaLayerGroup /> {floorCount} {floorCount === 1 ? "Floor" : "Floors"}</b><span>·</span><b><FaBuilding /> {wingCount} {wingCount === 1 ? "Wing" : "Wings"}</b><span>·</span><b><FaBed /> {unitCount} Units</b></small></div></div>
-                  <div className="room-manager-property-actions room-manager-property-actions--desktop room-manager-hierarchy-property-actions"><button type="button" className="room-manager-hierarchy-edit-button" onClick={() => editPropertyLocation(location)}><FaEdit /><span>Edit</span></button><button type="button" className="room-manager-hierarchy-add-floor-button room-manager-property-add-floor" onClick={() => { const key = `property:${selectedType}:${normalizeCategoryName(location.name).toLowerCase()}`; setFloorEntry((current) => current.key === key ? { key: "", value: "", wingName: "" } : { key, value: "", wingName: wings[0]?.name || "No Wing" }); }}><FaPlus /><span>Add Floor</span></button></div>
+                  <div><strong style={{ textAlign: "justify" }}>{location.name}</strong><small><b><FaBuilding /> {wingCount} {wingCount === 1 ? "Wing" : "Wings"}</b><span>·</span><b><FaBed /> {unitCount} {hierarchyUnitPluralLabel}</b></small></div></div>
+                  <div className="room-manager-property-actions room-manager-property-actions--desktop room-manager-hierarchy-property-actions"><button type="button" className="room-manager-hierarchy-edit-button" onClick={() => editPropertyLocation(location)}><FaEdit /><span>Edit</span></button></div>
                 </div>
-                {floorEntry.key === `property:${selectedType}:${normalizeCategoryName(location.name).toLowerCase()}` && <form className="room-manager-property-floor-form" onSubmit={(event) => { event.preventDefault(); saveFloorToProperty(location, floorEntry.wingName); }}>
-                  {wings.length > 1 && <select className="form-select form-select-sm" value={floorEntry.wingName} onChange={(event) => setFloorEntry((current) => ({ ...current, wingName: event.target.value }))}>{wings.map((wing) => <option key={wing.name} value={wing.name}>{wing.name === "No Wing" ? "No wing" : `Wing ${wing.name}`}</option>)}</select>}
-                  <input autoFocus className="form-control form-control-sm" value={floorEntry.value} onChange={(event) => setFloorEntry((current) => ({ ...current, value: event.target.value }))} placeholder="Floor name (e.g. Floor 1, Ground)" aria-label={`Floor name for ${location.name}`} />
-                  <button type="submit" className="btn btn-sm btn-primary" disabled={floorSaving}>{floorSaving ? "Saving..." : "Save floor"}</button>
-                  <button type="button" className="btn btn-sm btn-link text-muted" onClick={() => setFloorEntry({ key: "", value: "", wingName: "" })}>Cancel</button>
-                </form>}
                 <div className="room-manager-hierarchy-content room-manager-hierarchy-content--flat">{wings.map((wing) => {
                   const floorNames = wing.floors || [];
                   const floors = floorNames.length ? floorNames : ["No Floor"];
-                  const wingEntryKey = `${selectedType}:${normalizeCategoryName(location.name).toLowerCase()}:${wing.name}`;
                   return <section className="room-manager-hierarchy-wing" key={`${location.name}:${wing.name}`}>
-                    <div className="room-manager-hierarchy-wing-title"><span className="room-manager-hierarchy-wing-label">{wing.name === "No Wing" ? "NO WING" : `WING ${wing.name}`}</span><span className="room-manager-hierarchy-wing-line" /><button type="button" className="btn btn-sm btn-light room-manager-add-floor-trigger" onClick={() => setFloorEntry((current) => current.key === wingEntryKey ? { key: "", value: "" } : { key: wingEntryKey, value: "" })}><FaPlus className="me-1" />Add floor</button></div>
-                    {floorEntry.key === wingEntryKey && <form className="room-manager-add-floor-form" onSubmit={(event) => { event.preventDefault(); saveFloorToProperty(location, wing.name); }}><input autoFocus className="form-control form-control-sm" value={floorEntry.value} onChange={(event) => setFloorEntry((current) => ({ ...current, value: event.target.value }))} placeholder="e.g. Ground floor or 3" aria-label={`Floor name for ${location.name}, ${wing.name}`} /><button type="submit" className="btn btn-sm btn-primary" disabled={floorSaving}>{floorSaving ? "Saving..." : "Save floor"}</button><button type="button" className="btn btn-sm btn-link text-muted" onClick={() => setFloorEntry({ key: "", value: "" })}>Cancel</button></form>}
+                    <div className="room-manager-hierarchy-wing-title"><span className="room-manager-hierarchy-wing-label">{wing.name === "No Wing" ? "NO WING" : `WING ${wing.name}`}</span><span className="room-manager-hierarchy-wing-line" /></div>
                     {floors.map((floor) => {
                       const floorUnits = location.units.filter((room) => normalizeCategoryName(room.wingName || "No Wing").toLowerCase() === normalizeCategoryName(wing.name).toLowerCase() && normalizeCategoryName(room.floorNo || "No Floor").toLowerCase() === normalizeCategoryName(floor).toLowerCase());
                       const floorKey = `${selectedType}:${normalizeCategoryName(location.name).toLowerCase()}:${wing.name}:${floor}`;
                       const floorCollapsed = collapsedHierarchyFloors[floorKey] ?? floorUnits.length === 0;
                       return <section className="room-manager-hierarchy-floor-card" key={`${location.name}:${wing.name}:${floor}`}>
-                        <header className="room-manager-hierarchy-floor-head" onClick={() => setCollapsedHierarchyFloors((current) => ({ ...current, [floorKey]: !current[floorKey] }))} role="button" tabIndex={0} aria-expanded={!floorCollapsed} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setCollapsedHierarchyFloors((current) => ({ ...current, [floorKey]: !current[floorKey] })); } }}><div className="room-manager-hierarchy-floor-title"><span className="room-manager-hierarchy-floor-chevron">{floorCollapsed ? <FaChevronDown /> : <FaChevronUp />}</span><span className="room-manager-hierarchy-floor-icon"><FaLayerGroup /></span><div><strong style={{textAlign: "justify"}}>{hierarchyFloorLabel(floor)}</strong><span>{unitCountFor(floorUnits)} {unitCountFor(floorUnits) === 1 ? "unit" : "units"} · {wing.name === "No Wing" ? "No wing" : `Wing ${wing.name}`}</span></div></div><div className="room-manager-floor-actions"><button type="button" className="btn btn-sm btn-outline-primary" onClick={(event) => { event.stopPropagation(); addAt(location, wing.name, floor); }}><FaPlus className="me-1" />Add {getUnitLabel(selectedType)}</button><button type="button" className="room-manager-floor-delete-button" onClick={(event) => { event.stopPropagation(); deleteFloorFromProperty(location, wing.name, floor); }} title="Delete floor" aria-label={`Delete ${hierarchyFloorLabel(floor)}`} disabled={floorSaving}><FaTrash /></button></div></header>
-                        {!floorCollapsed && (floorUnits.length ? selectedType === "bed" ? <div className="room-manager-hierarchy-units">{floorUnits.map((room) => isPlaceholderUnit(room) ? <article className="room-manager-hierarchy-unit room-manager-planned-unit" key={room._id}><div className="room-manager-hierarchy-unit-main"><div className="room-manager-hostel-room-heading"><div className="room-manager-hostel-room-identity"><span className="room-manager-hostel-room-number">{room.beds?.[0]?.bedNo || "Bed"}</span><strong>Bed {room.beds?.[0]?.bedNo || "details pending"}</strong><small>Details pending</small></div><div className="room-manager-hostel-room-actions"><button type="button" className="room-manager-room-action is-edit" onClick={() => openSetupUnitModal(room)}><FaEdit />Set details</button></div></div></div></article> : <article className="room-manager-hierarchy-unit" key={room._id || `${room.category}-${room.roomNo}`}>
-                           <div className="room-manager-hierarchy-unit-main"><div className="room-manager-hostel-room-heading"><div className="room-manager-hostel-room-identity"><span className="room-manager-hostel-room-number">{room.roomNo}</span><strong>Room {room.roomNo}</strong><small>{room.beds?.length || 0} {room.beds?.length === 1 ? "bed" : "beds"}</small></div><div className="room-manager-hostel-room-actions">{canAddHostelBed && <button type="button" className="room-manager-room-action is-add" onClick={() => openAddBedModal(room)}><FaPlus />Add Bed</button>}<button type="button" className="room-manager-room-action is-edit" onClick={() => openSetupUnitModal(room)} title={`Edit room ${room.roomNo}`}><FaEdit />Edit room</button><button type="button" className="room-manager-room-action is-delete" onClick={() => openDeleteRoomModal(room)} title={`Delete room ${room.roomNo}`}><FaTrash />Delete room</button></div></div><div className="room-manager-hierarchy-bed-list">{(room.beds || []).map((bed, idx) => <div className="room-manager-hostel-bed-row" key={`${room.roomNo}-${bed.bedNo}-${idx}`}><span className="room-manager-hostel-bed-number">Bed {bed.bedNo}</span>{bed.bedCategory ? <span className="room-manager-hostel-bed-category">{bed.bedCategory}</span> : <span className="room-manager-hostel-bed-category is-empty">—</span>}<span className="room-manager-hostel-bed-price">{bed.price == null ? "—" : `Rs. ${Number(bed.price).toLocaleString("en-IN")}`}</span><span className="room-manager-bed-chip-actions"><button type="button" className="room-manager-unit-icon-action is-history" onClick={() => setUnitHistoryTarget({ room, bedNo: bed.bedNo })} title={`History for bed ${bed.bedNo}`} aria-label={`History for bed ${bed.bedNo}`}><FaHistory /></button><button type="button" className="room-manager-unit-icon-action is-edit" onClick={() => openEditModal(room._id, room.roomNo, bed.bedNo, bed.bedCategory ?? "", bed.price ?? "")} title={`Edit bed ${bed.bedNo}`} aria-label={`Edit bed ${bed.bedNo}`}><FaEdit /></button><button type="button" className="room-manager-unit-icon-action is-delete" onClick={() => openDeleteBedModal(room, bed.bedNo)} title={`Delete bed ${bed.bedNo}`} aria-label={`Delete bed ${bed.bedNo}`}><FaTrash /></button></span></div>)}{!room.beds?.length && <small>No beds added</small>}</div></div>
-                         </article>)}</div> : <div className={`room-manager-hierarchy-flat-table-wrap${selectedType === "shop" ? " is-commercial" : ""}`}><table className="room-manager-hierarchy-flat-table"><colgroup><col className="unit-number-col" /><col className="unit-type-col" /><col className="unit-rent-col" /><col className="unit-status-col" /><col className="unit-actions-col" /></colgroup><tbody>{floorUnits.map((room) => isPlaceholderUnit(room) ? <tr className="room-manager-planned-unit-row" key={room._id}><td data-label="Unit"><strong>{getUnitLabel(selectedType)} details pending</strong></td><td data-label="Type">{getPropertyTypeLabel(selectedType)}</td><td data-label="Monthly rent">—</td><td data-label="Status"><span className="room-manager-unit-occupancy is-pending">Details pending</span></td><td data-label="Actions"><button type="button" className="btn btn-sm btn-outline-primary" onClick={() => openSetupUnitModal(room)}>Set details</button></td></tr> : <tr key={room._id || `${room.category}-${room.roomNo}`}><td data-label={selectedType === "shop" ? "Shop" : "Unit"}><span className="roomNoPill" style={{ "--bg": roomColors(room).bg, "--fg": roomColors(room).fg }}>{room.roomNo}</span>{selectedType === "shop" && <strong className="room-manager-commercial-title">Shop {room.roomNo}</strong>}</td><td data-label="Type"><span className="room-manager-unit-kind">{selectedType === "shop" ? <FaBuilding /> : <FaBed />} {room.flatType || getPropertyTypeLabel(room.propertyType)}</span></td><td data-label="Monthly rent">{room.beds?.[0]?.price == null ? "—" : `Rs. ${Number(room.beds[0].price).toLocaleString("en-IN")}`}</td><td data-label="Status"><span className={`room-manager-unit-occupancy ${isOccupied(room) ? "is-occupied" : "is-vacant"}`}>{isOccupied(room) ? "Occupied" : "Vacant"}</span></td><td data-label="Actions"><div className="room-manager-property-actions room-manager-property-actions--desktop"><button type="button" className="room-manager-unit-icon-action is-history" onClick={() => setUnitHistoryTarget({ room })} title="Unit history" aria-label={`History for ${selectedType === "shop" ? "shop" : "room"} ${room.roomNo}`}><FaHistory /></button><button type="button" className="room-manager-unit-icon-action is-edit" onClick={() => openSetupUnitModal(room)} title="Edit unit" aria-label="Edit unit"><FaEdit /></button><button type="button" className="room-manager-unit-icon-action is-delete" onClick={() => openDeleteRoomModal(room)} title="Delete unit" aria-label="Delete unit"><FaTrash /></button></div></td></tr>)}</tbody></table></div> : <div className="room-manager-hierarchy-empty">No {getUnitLabel(selectedType).toLowerCase()} on this floor yet.</div>)}
+                        <header className="room-manager-hierarchy-floor-head" onClick={() => setCollapsedHierarchyFloors((current) => ({ ...current, [floorKey]: !current[floorKey] }))} role="button" tabIndex={0} aria-expanded={!floorCollapsed} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setCollapsedHierarchyFloors((current) => ({ ...current, [floorKey]: !current[floorKey] })); } }}><div className="room-manager-hierarchy-floor-title"><span className="room-manager-hierarchy-floor-chevron">{floorCollapsed ? <FaChevronDown /> : <FaChevronUp />}</span><span className="room-manager-hierarchy-floor-icon"><FaLayerGroup /></span><div><strong style={{textAlign: "justify"}}>{hierarchyFloorLabel(floor)}</strong><span>{unitCountFor(floorUnits)} {unitCountFor(floorUnits) === 1 ? hierarchyUnitLabel : hierarchyUnitPluralLabel} · {wing.name === "No Wing" ? "No wing" : `Wing ${wing.name}`}</span></div></div><div className="room-manager-floor-actions"><button type="button" className="btn btn-sm btn-outline-primary" onClick={(event) => { event.stopPropagation(); addAt(location, wing.name, floor); }}><FaPlus className="me-1" />Add {getUnitLabel(selectedType)}</button><button type="button" className="room-manager-floor-delete-button" onClick={(event) => { event.stopPropagation(); deleteFloorFromProperty(location, wing.name, floor); }} title="Delete floor" aria-label={`Delete floor ${hierarchyFloorLabel(floor)}`} disabled={floorSaving}><FaTrash /><span>Delete floor</span></button></div></header>
+                        {!floorCollapsed && (floorUnits.length ? selectedType === "bed" ? <div className="room-manager-hierarchy-units">{floorUnits.map((room) => isPlaceholderUnit(room) ? <article className="room-manager-hierarchy-unit room-manager-planned-unit" key={room._id}><div className="room-manager-hierarchy-unit-main"><div className="room-manager-hostel-room-heading"><button type="button" className="room-manager-hostel-room-identity room-manager-pending-unit-copy" onClick={() => openSetupUnitModal(room)} aria-label="Add bed number and details"><span className="room-manager-hostel-room-number">Needs setup</span><strong>Bed details needed</strong><small>Click to add a bed number and other details</small></button></div></div></article> : <article className="room-manager-hierarchy-unit room-manager-room-card" key={room._id || `${room.category}-${room.roomNo}`}>
+                           <div className="room-manager-hierarchy-unit-main"><div className="room-manager-hostel-room-heading"><div className="room-manager-room-heading-icon"><FaBed /></div><div className="room-manager-hostel-room-identity"><span className="room-manager-hostel-room-number">{room.roomNo}</span><strong>Room {room.roomNo}</strong><small>{room.beds?.length || 0} {room.beds?.length === 1 ? "bed" : "beds"}</small></div><details className="room-manager-room-actions-menu"><summary><span aria-hidden="true">···</span> Actions <FaChevronDown /></summary><div className="room-manager-room-actions-menu-items"><button type="button" onClick={() => setUnitHistoryTarget({ room })}><FaHistory />Bed History</button><button type="button" onClick={() => openSetupUnitModal(room)}><FaEdit />Edit Room</button><button type="button" className="is-delete" onClick={() => openDeleteRoomModal(room)}><FaTrash />Delete Room</button></div></details></div><div className="room-manager-hierarchy-bed-list">{(room.beds || []).map((bed, idx) => <div className={`room-manager-hostel-bed-row ${isBedOccupied(room, bed.bedNo) ? "is-occupied" : "is-available"}`} key={`${room.roomNo}-${bed.bedNo}-${idx}`}><span className="room-manager-hostel-bed-number">Bed {bed.bedNo}</span><span className="room-manager-hostel-bed-icon"><FaBed /></span><span className={`room-manager-hostel-bed-status ${isBedOccupied(room, bed.bedNo) ? "is-occupied" : "is-available"}`}>{isBedOccupied(room, bed.bedNo) ? "Occupied" : "Available"}</span><span className="room-manager-hostel-bed-category room-manager-hostel-bed-category--tile">{bed.bedCategory || "No category"}</span><span className="room-manager-hostel-bed-price visually-hidden">{bed.price == null ? "" : `Rs. ${Number(bed.price).toLocaleString("en-IN")}`}</span><span className="room-manager-bed-chip-actions"><button type="button" className="room-manager-unit-icon-action is-history" onClick={() => setUnitHistoryTarget({ room, bedNo: bed.bedNo })} title={`History for bed ${bed.bedNo}`} aria-label={`History for bed ${bed.bedNo}`}><FaHistory /></button><button type="button" className="room-manager-unit-icon-action is-edit" onClick={() => openEditModal(room._id, room.roomNo, bed.bedNo, bed.bedCategory ?? "", bed.price ?? "")} title={`Edit bed ${bed.bedNo}`} aria-label={`Edit bed ${bed.bedNo}`}><FaEdit /></button><button type="button" className="room-manager-unit-icon-action is-delete" onClick={() => openDeleteBedModal(room, bed.bedNo)} title={`Delete bed ${bed.bedNo}`} aria-label={`Delete bed ${bed.bedNo}`}><FaTrash /></button></span></div>)}{!room.beds?.length && <small>No beds added</small>}</div><div className="room-manager-room-card-footer">{canAddHostelBed && <button type="button" className="room-manager-room-footer-action" onClick={() => openAddBedModal(room)}><FaBed />Add Bed</button>}</div></div>
+                         </article>)}</div> : <div className={`room-manager-flat-unit-list${selectedType === "shop" ? " is-commercial" : ""}`}>{floorUnits.map((room) => isPlaceholderUnit(room) ? <article className="room-manager-flat-unit-card room-manager-flat-unit-pending" key={room._id}><button type="button" className="room-manager-pending-unit-copy" onClick={() => openSetupUnitModal(room)} aria-label={`Add details for ${selectedType === "room" ? "room" : "shop"}`}><span className="room-manager-pending-unit-badge">Needs setup</span><strong>{selectedType === "room" ? "Room" : "Shop"} details needed</strong><small>Click to add the {selectedType === "room" ? "room" : "shop"} number and details</small></button></article> : <article className={`room-manager-flat-unit-card ${isOccupied(room) ? "is-occupied" : "is-vacant"}`} key={room._id || `${room.category}-${room.roomNo}`}><div className="room-manager-flat-unit-heading"><span className="room-manager-flat-unit-icon">{selectedType === "shop" ? <FaBuilding /> : <FaBed />}</span><div className="room-manager-flat-unit-copy"><strong>{selectedType === "shop" ? "Shop" : "Room"} {room.roomNo}</strong><small>{room.flatType || getPropertyTypeLabel(room.propertyType)}</small></div><details className="room-manager-room-actions-menu"><summary><span aria-hidden="true">···</span> Actions <FaChevronDown /></summary><div className="room-manager-room-actions-menu-items"><button type="button" onClick={() => setUnitHistoryTarget({ room })}><FaHistory />Unit History</button><button type="button" onClick={() => openSetupUnitModal(room)}><FaEdit />Edit {selectedType === "shop" ? "Shop" : "Room"}</button><button type="button" className="is-delete" onClick={() => openDeleteRoomModal(room)}><FaTrash />Delete {selectedType === "shop" ? "Shop" : "Room"}</button></div></details></div><div className="room-manager-flat-unit-details"><span className={`room-manager-flat-unit-status ${isOccupied(room) ? "is-occupied" : "is-vacant"}`}>{isOccupied(room) ? "Occupied" : "Available"}</span><span className="room-manager-flat-unit-type">{getPropertyTypeLabel(room.propertyType)}</span><span className="room-manager-flat-unit-rent">Monthly rent <strong>{room.beds?.[0]?.price == null ? "Not set" : `Rs. ${Number(room.beds[0].price).toLocaleString("en-IN")}`}</strong></span></div></article>)}</div> : <div className="room-manager-hierarchy-empty">No {getUnitLabel(selectedType).toLowerCase()} on this floor yet.</div>)}
                       </section>;
                     })}
                   </section>;
@@ -2790,15 +2760,30 @@ export default function RoomManager() {
     const nextWings = mergeCategoryNames(String(value || "").split(","));
     setPropertyDraft((previous) => {
       const previousWings = mergeCategoryNames(String(previous.wingNames || "").split(","));
+      const floorUnitCounts = { ...(previous.floorUnitCounts || {}) };
       const nextWingFloorInputs = Object.fromEntries(nextWings.map((wingName, index) => {
         const oldWingName = previousWings[index];
         const floors = previous.wingFloorInputs?.[wingName] || previous.wingFloorInputs?.[oldWingName] ||
           String(previous.wingFloors?.[wingName] || previous.wingFloors?.[oldWingName] || "").split(",").map((floor) => floor.trim()).filter(Boolean);
+        const isWingRename = oldWingName && oldWingName !== wingName &&
+          !nextWings.some((wing) => wing.toLowerCase() === oldWingName.toLowerCase()) &&
+          !previousWings.some((wing) => wing.toLowerCase() === wingName.toLowerCase());
+        if (isWingRename) {
+          floors.forEach((floor) => {
+            const oldKey = `${oldWingName}::${floor}`;
+            const newKey = `${wingName}::${floor}`;
+            if (Object.prototype.hasOwnProperty.call(floorUnitCounts, oldKey)) {
+              floorUnitCounts[newKey] = floorUnitCounts[oldKey];
+              delete floorUnitCounts[oldKey];
+            }
+          });
+        }
         return [wingName, [...floors]];
       }));
       return {
         ...previous,
         wingNames: value,
+        floorUnitCounts,
         wingFloorInputs: nextWingFloorInputs,
         wingFloors: Object.fromEntries(Object.entries(nextWingFloorInputs).map(([wingName, floors]) => [wingName, floors.join(", ")])),
       };
@@ -2808,13 +2793,67 @@ export default function RoomManager() {
     ? propertyDraftWingNames.flatMap((wingName) => mergeCategoryNames(propertyDraft.wingFloorInputs?.[wingName] || String(propertyDraft.wingFloors?.[wingName] || "").split(","), String(propertyDraft.floorNames || "").split(",")).map((floorName) => ({ wingName, floorName, key: `${wingName}::${floorName}` })))
     : mergeCategoryNames(propertyDraft.floorNameInputs?.length ? propertyDraft.floorNameInputs : String(propertyDraft.floorNames || "").split(",")).map((floorName) => ({ wingName: "No Wing", floorName, key: `No Wing::${floorName}` }));
 
+  const floorPlanAdditionalForLocation = (location) => {
+    const type = normalizePropertyType(location?.propertyType);
+    const rows = (location?.wings || []).length
+      ? location.wings.flatMap((wing) => (wing.floors || []).map((floorName) => ({ wingName: wing.name, floorName })))
+      : (location?.floors || []).map((floorName) => ({ wingName: "No Wing", floorName }));
+    return rows.reduce((total, row) => {
+      const key = `${row.wingName || "No Wing"}::${row.floorName}`;
+      const planned = Math.max(0, Number(location.floorUnitCounts?.[key]) || 0);
+      const ready = readyRooms.filter((room) => normalizePropertyType(room.propertyType) === type &&
+        normalizeCategoryName(room.category).toLowerCase() === normalizeCategoryName(location.name).toLowerCase() &&
+        normalizeCategoryName(room.wingName || "No Wing").toLowerCase() === normalizeCategoryName(row.wingName || "No Wing").toLowerCase() &&
+        normalizeCategoryName(room.floorNo).toLowerCase() === normalizeCategoryName(row.floorName).toLowerCase())
+        .reduce((sum, room) => sum + (type === "bed" ? room.beds?.length || 0 : 1), 0);
+      return total + Math.max(0, planned - ready);
+    }, 0);
+  };
+  const currentDraftLocation = propertyLocations.find((location) =>
+    normalizePropertyType(location.propertyType) === normalizePropertyType(propertyDraft.propertyType) &&
+    normalizeCategoryName(location.name).toLowerCase() === normalizeCategoryName(propertyDraft.name).toLowerCase()
+  );
+  const locationBeingEdited = propertyLocations.find((location) => `${normalizePropertyType(location.propertyType)}::${normalizeCategoryName(location.name).toLowerCase()}` === editingPropertyKey);
+  const draftReadyCategoryName = locationBeingEdited && normalizePropertyType(locationBeingEdited.propertyType) === normalizePropertyType(propertyDraft.propertyType)
+    ? locationBeingEdited.name
+    : propertyDraft.name;
+  const plannedRequestByType = {
+    beds: unitUsage.beds,
+    rooms: unitUsage.rooms,
+    shops: unitUsage.shops,
+  };
+  propertyLocations.filter((location) => {
+    const locationKey = `${normalizePropertyType(location.propertyType)}::${normalizeCategoryName(location.name).toLowerCase()}`;
+    return location !== currentDraftLocation && locationKey !== editingPropertyKey;
+  }).forEach((location) => {
+    const key = quotaKeyForType(normalizePropertyType(location.propertyType));
+    plannedRequestByType[key] += floorPlanAdditionalForLocation(location);
+  });
+  const draftPlannedAdditional = propertyDraftFloorRows.reduce((total, row) => {
+    const planned = Math.max(0, Number(propertyDraft.floorUnitCounts?.[row.key]) || 0);
+    const ready = readyRooms.filter((room) => normalizePropertyType(room.propertyType) === normalizePropertyType(propertyDraft.propertyType) &&
+      normalizeCategoryName(room.category).toLowerCase() === normalizeCategoryName(draftReadyCategoryName).toLowerCase() &&
+      normalizeCategoryName(room.wingName || "No Wing").toLowerCase() === normalizeCategoryName(row.wingName || "No Wing").toLowerCase() &&
+      normalizeCategoryName(room.floorNo).toLowerCase() === normalizeCategoryName(row.floorName).toLowerCase())
+      .reduce((sum, room) => sum + (normalizePropertyType(room.propertyType) === "bed" ? room.beds?.length || 0 : 1), 0);
+    return total + Math.max(0, planned - ready);
+  }, 0);
+  plannedRequestByType[quotaKeyForType(propertyDraft.propertyType)] += draftPlannedAdditional;
+  const activePlanKey = quotaKeyForType(propertyDraft.propertyType);
+
   const selectPropertySetupName = (value) => {
     if (value === NEW_CATEGORY_VALUE) {
       setAddingNewPropertyName(true);
+      setCopySourceName("");
+      setCopySourceType("");
+      setPropertySetupMode("manual");
       setPropertyDraft((prev) => ({ ...prev, name: "", wingNames: "", floorNames: "", floorNameInputs: [], wingFloors: {}, wingFloorInputs: {}, floorUnitCounts: {} }));
       return;
     }
     setAddingNewPropertyName(false);
+    setCopySourceName("");
+    setCopySourceType("");
+    setPropertySetupMode("manual");
     const matching = propertyLocations.filter((item) => normalizeCategoryName(item?.name).toLowerCase() === normalizeCategoryName(value).toLowerCase());
     const wings = mergeCategoryNames(matching.flatMap((item) => (item.wings || []).map((wing) => wing?.name)));
     const locationFloors = mergeCategoryNames(
@@ -2831,11 +2870,25 @@ export default function RoomManager() {
     setPropertyDraft((prev) => ({ ...prev, name: value, wingNames: wings.join(", "), floorNames: wings.length ? "" : locationFloors.join(", "), floorNameInputs: wings.length ? [] : [...locationFloors], wingFloors, wingFloorInputs: Object.fromEntries(Object.entries(wingFloors).map(([wing, floors]) => [wing, floors.split(",").map((floor) => floor.trim()).filter(Boolean)])), floorUnitCounts: {} }));
   };
 
-  const propertyWizardSteps = ["Property", "Building", "Wing", "Floor", "Unit", "Bed & Rent"];
+  const finalUnitStepLabel = getPlannedUnitLabel(propertyDraft.propertyType);
+  const isManualStructureOnlyFlow = propertySetupMode === "manual" && !editingPropertyKey;
+  const propertyWizardSteps = isManualStructureOnlyFlow
+    ? ["Property", "Building", "Wing", "Floor", "Review"]
+    : ["Property", "Building", "Wing", "Floor", "Unit", `${finalUnitStepLabel.charAt(0).toUpperCase()}${finalUnitStepLabel.slice(1)}`];
   const goToNextPropertyStep = () => {
     if (propertyWizardStep === 1 && !normalizeCategoryName(propertyDraft.name)) {
       alert("Enter a property or building name to continue.");
       return;
+    }
+    if (propertyWizardStep === 2 && propertySetupMode === "copy") {
+      if (propertyDraftNameExists) {
+        alert("To copy this layout into a fresh building, choose ‘+ Add a new property / building’ in Property Details and enter a new name.");
+        return;
+      }
+      if (!availableCopySourceLayouts.some((location) => normalizePropertyType(location.propertyType) === normalizePropertyType(copySourceType) && normalizeCategoryName(location.name).toLowerCase() === normalizeCategoryName(copySourceName).toLowerCase())) {
+        alert("Choose a different saved building as the layout source.");
+        return;
+      }
     }
     if (propertyWizardStep === 4 && !propertyDraftFloorRows.length) {
       alert("Set at least one floor before continuing.");
@@ -2852,9 +2905,70 @@ export default function RoomManager() {
     const nextFloors = numberedFloorIdentifiers(count);
     return { ...previous, floorNameInputs: nextFloors, floorNames: nextFloors.join(", ") };
   });
-  const copyPropertyLayout = (sourceName) => {
+  const copyablePropertyLayouts = (() => {
+    const layouts = new Map();
+    const getLayout = (propertyType, name) => {
+      const normalizedType = normalizePropertyType(propertyType);
+      const normalizedName = normalizeCategoryName(name);
+      if (!normalizedName) return null;
+      const key = `${normalizedType}::${normalizedName.toLowerCase()}`;
+      if (!layouts.has(key)) layouts.set(key, { propertyType: normalizedType, name: normalizedName, wings: [], floors: [], floorUnitCounts: {} });
+      return layouts.get(key);
+    };
+    propertyLocations.forEach((location) => {
+      const layout = getLayout(location.propertyType, location.name);
+      if (!layout) return;
+      layout.floors = mergeCategoryNames(layout.floors, location.floors || []);
+      layout.floorUnitCounts = { ...layout.floorUnitCounts, ...(location.floorUnitCounts || {}) };
+      (location.wings || []).forEach((wing) => {
+        const existingWing = layout.wings.find((item) => normalizeCategoryName(item.name).toLowerCase() === normalizeCategoryName(wing.name).toLowerCase());
+        if (existingWing) existingWing.floors = mergeCategoryNames(existingWing.floors, wing.floors || []);
+        else layout.wings.push({ name: wing.name, floors: mergeCategoryNames(wing.floors || []) });
+      });
+    });
+    rooms.forEach((room) => {
+      const layout = getLayout(room.propertyType, room.category);
+      if (!layout) return;
+      const floor = normalizeCategoryName(room.floorNo);
+      const wingName = normalizeCategoryName(room.wingName);
+      if (wingName) {
+        let wing = layout.wings.find((item) => normalizeCategoryName(item.name).toLowerCase() === wingName.toLowerCase());
+        if (!wing) {
+          wing = { name: wingName, floors: [] };
+          layout.wings.push(wing);
+        }
+        if (floor) wing.floors = mergeCategoryNames(wing.floors, [floor]);
+      } else if (floor) {
+        layout.floors = mergeCategoryNames(layout.floors, [floor]);
+      }
+    });
+    return [...layouts.values()];
+  })();
+  const propertyDraftNameExists = copyablePropertyLayouts.some((location) =>
+    normalizeCategoryName(location.name).toLowerCase() === normalizeCategoryName(propertyDraft.name).toLowerCase()
+  );
+  const availableCopySourceLayouts = copyablePropertyLayouts.filter((location) =>
+    !propertyDraftNameExists &&
+    normalizeCategoryName(location.name).toLowerCase() !== normalizeCategoryName(propertyDraft.name).toLowerCase()
+  );
+  const copyPropertyLayout = (sourceValue) => {
+    if (!sourceValue) {
+      setCopySourceName("");
+      setCopySourceType("");
+      setPropertyDraft((previous) => ({ ...previous, wingNames: "", floorNames: "", floorNameInputs: [], wingFloors: {}, wingFloorInputs: {}, floorUnitCounts: {} }));
+      return;
+    }
+    let selectedSource;
+    try { selectedSource = JSON.parse(sourceValue); } catch { return; }
+    const [sourceType, sourceName] = selectedSource;
+    if (normalizeCategoryName(sourceName).toLowerCase() === normalizeCategoryName(propertyDraft.name).toLowerCase()) {
+      setCopySourceName("");
+      setCopySourceType("");
+      return;
+    }
     setCopySourceName(sourceName);
-    const source = propertyLocations.find((location) => normalizePropertyType(location.propertyType) === normalizePropertyType(propertyDraft.propertyType) && normalizeCategoryName(location.name).toLowerCase() === normalizeCategoryName(sourceName).toLowerCase());
+    setCopySourceType(sourceType);
+    const source = availableCopySourceLayouts.find((location) => normalizePropertyType(location.propertyType) === normalizePropertyType(sourceType) && normalizeCategoryName(location.name).toLowerCase() === normalizeCategoryName(sourceName).toLowerCase());
     if (!source) return;
     const wings = source.wings || [];
     const floors = mergeCategoryNames(source.floors || [], wings.flatMap((wing) => wing.floors || []));
@@ -2866,7 +2980,9 @@ export default function RoomManager() {
       floorNameInputs: wings.length ? [] : [...floors],
       wingFloors,
       wingFloorInputs: Object.fromEntries(wings.map((wing) => [wing.name, [...(wing.floors || [])]])),
-      floorUnitCounts: { ...(source.floorUnitCounts || {}) },
+      // Copy only the shared building structure. Unit counts belong to the
+      // destination type and should be planned independently in Step 5.
+      floorUnitCounts: {},
     }));
   };
   const floorStepLabel = (index) => index === 0 ? "Ground" : `${floorLabelFromKey(String(index))} Floor`;
@@ -2877,42 +2993,70 @@ export default function RoomManager() {
     })}</div>
     : <div className="room-manager-wizard-floor-card"><label htmlFor="property-floor-count">Number of floors</label><input id="property-floor-count" type="number" min="0" max="100" className="form-control" value={propertyDraft.floorNameInputs?.length || 0} onChange={(event) => resizeSharedFloorCount(Math.min(100, Math.max(0, Math.floor(Number(event.target.value) || 0))))} /><div className="room-manager-wizard-floor-chips">{(propertyDraft.floorNameInputs || []).map((floor, index) => <span key={floor}>{floorStepLabel(index)}</span>)}</div></div>;
   const renderPlannedUnitCounts = () => propertyDraftFloorRows.length > 0
-    ? <div className="room-manager-floor-counts"><div className="room-manager-floor-counts-heading"><strong>Units planned on each floor</strong><small>Enter how many {getPlannedUnitLabel(propertyDraft.propertyType)} belong on each floor.</small></div>{propertyDraftFloorRows.map((row) => <label className="room-manager-floor-count-row" key={row.key}><span><strong>{row.wingName === "No Wing" ? "" : `Wing ${row.wingName} · `}{row.floorName}</strong><small>{getPlannedUnitLabel(propertyDraft.propertyType)} planned</small></span><input type="number" min="0" max="5000" className="form-control form-control-sm" value={propertyDraft.floorUnitCounts?.[row.key] ?? ""} onChange={(event) => setPropertyDraft((prev) => ({ ...prev, floorUnitCounts: { ...(prev.floorUnitCounts || {}), [row.key]: event.target.value === "" ? "" : Math.min(5000, Math.max(0, Math.floor(Number(event.target.value) || 0))) } }))} aria-label={`${getPlannedUnitLabel(propertyDraft.propertyType)} count for ${row.wingName} ${row.floorName}`} placeholder="0" /></label>)}</div>
+    ? <div className="room-manager-floor-counts"><div className="room-manager-floor-counts-heading"><strong>Units planned on each floor</strong><small>Enter how many {getPlannedUnitLabel(propertyDraft.propertyType)} belong on each floor.</small></div>{propertyDraftFloorRows.map((row) => <label className="room-manager-floor-count-row" key={row.key}><span><strong>{row.wingName === "No Wing" ? "" : `Wing ${row.wingName} · `}{row.floorName}</strong><small>{getPlannedUnitLabel(propertyDraft.propertyType)} planned</small></span><input type="number" min="0" className="form-control form-control-sm" value={propertyDraft.floorUnitCounts?.[row.key] ?? ""} onChange={(event) => setPropertyDraft((prev) => ({ ...prev, floorUnitCounts: { ...(prev.floorUnitCounts || {}), [row.key]: event.target.value === "" ? "" : Math.max(0, Math.floor(Number(event.target.value) || 0)) } }))} aria-label={`${getPlannedUnitLabel(propertyDraft.propertyType)} count for ${row.wingName} ${row.floorName}`} placeholder="0" /> </label>)}<div className="room-manager-wizard-capacity-summary">Planned total: {plannedRequestByType[activePlanKey]} {getPlannedUnitLabel(propertyDraft.propertyType)}</div></div>
     : <div className="room-manager-wizard-empty-note">Add at least one floor in the previous step to set the planned unit capacity.</div>;
+  const renderPropertyEditForm = () => (
+    <main className="room-manager-property-wizard-body room-manager-property-edit-body">
+      <section className="room-manager-property-wizard-panel">
+        <h3><span><FaBuilding /></span>Edit Building</h3>
+        <p className="room-manager-wizard-step-help">Update the building name, wings, floors, and planned unit counts.</p>
+        <label className="room-manager-wizard-label"><span>Property / Building Name <b>*</b></span>
+          <input className="form-control" value={propertyDraft.name} onChange={(event) => setPropertyDraft((previous) => ({ ...previous, name: event.target.value }))} placeholder="Enter property / building name" maxLength={100} />
+        </label>
+        <div className="room-manager-edit-structure-section">
+          <label className="room-manager-wizard-label">Wings <small>(optional, comma separated)</small>
+            <input className="form-control" value={propertyDraft.wingNames} onChange={(event) => updatePropertyDraftWingNames(event.target.value)} placeholder="e.g. A, B, C" />
+          </label>
+        </div>
+        <div className="room-manager-edit-structure-section">
+          <h4>Floors</h4>
+          <p className="room-manager-wizard-step-help">Change the floor count to add or remove numbered floors.</p>
+          {renderFloorCountEditors()}
+        </div>
+        <div className="room-manager-edit-structure-section">
+          <h4>Planned units</h4>
+          {renderPlannedUnitCounts()}
+        </div>
+      </section>
+    </main>
+  );
   const renderPropertySetupModal = () => (
     <div className="room-manager-property-wizard-backdrop">
       <div className="modal-dialog modal-dialog-centered room-manager-property-wizard-dialog" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label="Add new property">
         <div className="modal-content room-manager-property-wizard" onClick={(event) => event.stopPropagation()}>
-          <header className="room-manager-property-wizard-header">
+          <header className={`room-manager-property-wizard-header${editingPropertyKey ? " is-editing" : ""}`}>
             <span className="room-manager-property-wizard-header-icon"><FaBuilding /></span>
-            <div><h2>{editingPropertyKey ? "Edit Property" : "Add New Property"}</h2><p>Set up the building, wings, floors and planned units</p></div>
-            <span className="room-manager-property-wizard-quick-label">Quick &amp; Easy Setup</span>
+            <div><h2>{editingPropertyKey ? "Edit Property" : "Add New Property"}</h2><p>{editingPropertyKey ? "Update the building structure and planned units" : "Set up the building, wings, floors and planned units"}</p></div>
+            {!editingPropertyKey && <span className="room-manager-property-wizard-quick-label">Quick &amp; Easy Setup</span>}
             <button type="button" onClick={() => { setShowPropertySetup(false); setEditingPropertyKey(""); }} aria-label="Close">×</button>
           </header>
+          {editingPropertyKey ? renderPropertyEditForm() : <>
           <nav className="room-manager-property-wizard-progress" aria-label="Property setup progress">
-            {propertyWizardSteps.map((step, index) => <div key={step} className={`room-manager-property-wizard-progress-step${propertyWizardStep === index + 1 ? " is-active" : propertyWizardStep > index + 1 ? " is-complete" : ""}`}><span>{propertyWizardStep > index + 1 ? "✓" : index + 1}</span><strong>{step}</strong></div>)}
+            {propertyWizardSteps.map((step, index) => <div key={step} className={`room-manager-property-wizard-progress-step${propertyWizardStep === index + 1 ? " is-active" : propertyWizardStep > index + 1 ? " is-complete" : ""}`}><span>{propertyWizardStep > index + 1 ? "?" : index + 1}</span><strong>{step}</strong></div>)}
           </nav>
           <main className="room-manager-property-wizard-body">
             {propertyWizardStep === 1 && <section className="room-manager-property-wizard-panel">
               <h3><span>1</span>Property Details</h3>
               <div className="room-manager-property-wizard-panel-content">
                 <div className="room-manager-property-wizard-fields">
-                  <label className="room-manager-wizard-label">Property Name <b>*</b>
+                  <label className="room-manager-wizard-label"><span>Property Name <b>*</b></span>
                     <select className="form-select" value={addingNewPropertyName ? NEW_CATEGORY_VALUE : propertyDraft.name} disabled={Boolean(editingPropertyKey)} onChange={(event) => selectPropertySetupName(event.target.value)}><option value="">Select an existing property</option>{quickPropertyNameOptions.map((name) => <option key={name} value={name}>{name}</option>)}<option value={NEW_CATEGORY_VALUE}>+ Add a new property / building</option></select>
+                    {/* <small className="room-manager-wizard-field-help">For a fresh building, choose the add-new option and enter its name. Select Copy from Existing Building in the next step to choose a layout.</small> */}
                   </label>
                   {(addingNewPropertyName || !propertyDraft.name) && <input aria-label="Property name" className="form-control" value={propertyDraft.name} onChange={(event) => setPropertyDraft((prev) => ({ ...prev, name: event.target.value }))} placeholder="Enter property / building name" maxLength={100} />}
-                  <div className="room-manager-wizard-label">Property Type <b>*</b><div className="room-manager-property-type-cards">{propertyTypeOptions.map((option) => <button type="button" key={option.value} className={`room-manager-property-type-card type-${option.value}${propertyDraft.propertyType === option.value ? " is-selected" : ""}`} disabled={Boolean(editingPropertyKey)} onClick={() => setPropertyDraft((prev) => ({ ...prev, propertyType: option.value }))}><span>{option.value === "bed" ? <FaBed /> : option.value === "room" ? <FaBuilding /> : <FaTags />}</span><strong>{option.label}</strong></button>)}</div></div>
+                  <div className="room-manager-wizard-label"><span>Property Type <b>*</b></span><div className="room-manager-property-type-cards">{propertyTypeOptions.map((option) => <button type="button" key={option.value} className={`room-manager-property-type-card type-${option.value}${propertyDraft.propertyType === option.value ? " is-selected" : ""}`} disabled={Boolean(editingPropertyKey)} onClick={() => { if (propertyDraft.propertyType !== option.value) { setCopySourceName(""); setCopySourceType(""); setPropertySetupMode("manual"); setPropertyDraft((prev) => ({ ...prev, propertyType: option.value, wingNames: "", floorNames: "", floorNameInputs: [], wingFloors: {}, wingFloorInputs: {}, floorUnitCounts: {} })); } }}><span>{option.value === "bed" ? <FaBed /> : option.value === "room" ? <FaBuilding /> : <FaTags />}</span><strong>{option.label}</strong></button>)}</div></div>
                 </div>
                 <aside className="room-manager-property-wizard-aside"><img src={propertyBuildingsArt} alt="Illustration of a property building" /><h4>You will add next</h4><ul><li>Building name</li><li>Wings, if needed</li><li>Floors for each wing</li><li>Planned units on every floor</li><li>Set unit details afterward</li></ul></aside>
               </div>
             </section>}
-            {propertyWizardStep === 2 && <section className="room-manager-property-wizard-panel"><h3><span>2</span>Building Setup</h3><p className="room-manager-wizard-step-help">This property name is used as the building name in Room Manager.</p><div className="room-manager-wizard-building-summary"><FaBuilding /><div><small>Building</small><strong>{propertyDraft.name || "Enter a building name in Property Details"}</strong></div></div><h4 className="room-manager-wizard-section-title">Quick Setup Options</h4><div className="room-manager-wizard-methods">{[{ id: "manual", title: "Add Building Manually", help: "Set up wings and floors step by step", icon: <FaLayerGroup /> }, { id: "bulk", title: "Bulk Unit Planning", help: "Enter capacity counts for each floor", icon: <FaCube /> }, { id: "copy", title: "Copy from Existing Building", help: "Reuse a saved wing and floor layout", icon: <FaBuilding /> }].map((method) => <button type="button" key={method.id} className={`room-manager-wizard-method${propertySetupMode === method.id ? " is-selected" : ""}`} onClick={() => setPropertySetupMode(method.id)}><span>{method.icon}</span><div><strong>{method.title}</strong><small>{method.help}</small></div><i>{propertySetupMode === method.id ? "●" : "○"}</i></button>)}</div>{propertySetupMode === "copy" && <label className="room-manager-wizard-label mt-3">Copy layout from<select className="form-select" value={copySourceName} onChange={(event) => copyPropertyLayout(event.target.value)}><option value="">Select a saved building</option>{propertyLocations.filter((location) => normalizePropertyType(location.propertyType) === normalizePropertyType(propertyDraft.propertyType) && normalizeCategoryName(location.name).toLowerCase() !== normalizeCategoryName(propertyDraft.name).toLowerCase()).map((location) => <option key={`${location.propertyType}-${location.name}`} value={location.name}>{location.name}</option>)}</select></label>}</section>}
+            {propertyWizardStep === 2 && <section className="room-manager-property-wizard-panel"><h3><span>2</span>Building Setup</h3><p className="room-manager-wizard-step-help">This property name is used as the building name in Room Manager.</p><div className="room-manager-wizard-building-summary"><FaBuilding /><div><small>Building</small><strong>{propertyDraft.name || "Enter a building name in Property Details"}</strong></div></div><h4 className="room-manager-wizard-section-title">Quick Setup Options</h4><div className="room-manager-wizard-methods">{[{ id: "manual", title: "Add Building Manually", help: "Set up wings and floors, then add units later", icon: <FaLayerGroup /> }, { id: "bulk", title: "Bulk Unit Planning", help: "Set unit counts per floor to create rows now", icon: <FaCube /> }, { id: "copy", title: "Copy from Existing Building", help: "Reuse a saved wing and floor layout", icon: <FaBuilding /> }].map((method) => <button type="button" key={method.id} className={`room-manager-wizard-method${propertySetupMode === method.id ? " is-selected" : ""}`} onClick={() => { setPropertySetupMode(method.id); if (method.id === "manual" && !editingPropertyKey) setPropertyDraft((previous) => ({ ...previous, floorUnitCounts: {} })); }}><span>{method.icon}</span><div><strong>{method.title}</strong><small>{method.help}</small></div><i>{propertySetupMode === method.id ? "?" : "?"}</i></button>)}</div>{propertySetupMode === "copy" && <label className="room-manager-wizard-label room-manager-wizard-copy-source-label">Copy layout from existing building<select className="form-select" value={copySourceName ? JSON.stringify([copySourceType, copySourceName]) : ""} onChange={(event) => copyPropertyLayout(event.target.value)}><option value="">{propertyDraftNameExists ? "Choose a new building name first" : availableCopySourceLayouts.length ? "Select a saved building" : "No saved layouts for this property type"}</option>{availableCopySourceLayouts.map((location) => <option key={`${location.propertyType}-${location.name}`} value={JSON.stringify([location.propertyType, location.name])}>{location.name} ({getPropertyTypeLabel(location.propertyType)})</option>)}</select><small className="room-manager-wizard-field-help">Choose the saved building layout to use for this new building.</small></label>}</section>}
             {propertyWizardStep === 3 && <section className="room-manager-property-wizard-panel"><h3><span>3</span>Add Wings</h3><p className="room-manager-wizard-step-help">Add wing names separated by commas. Leave this blank for a building without wings.</p><label className="room-manager-wizard-label">Wing Names <small>(optional)</small><input className="form-control" value={propertyDraft.wingNames} onChange={(event) => updatePropertyDraftWingNames(event.target.value)} placeholder="e.g. A, B, C" /></label>{propertyDraftWingNames.length > 0 && <div className="room-manager-wizard-summary-chips">{propertyDraftWingNames.map((wing) => <span key={wing}>Wing {wing}</span>)}</div>}</section>}
             {propertyWizardStep === 4 && <section className="room-manager-property-wizard-panel"><h3><span>4</span>Add Floors</h3><p className="room-manager-wizard-step-help">Enter the floor count. Floors are numbered G, 1, 2, 3… automatically.</p>{renderFloorCountEditors()}</section>}
-            {propertyWizardStep === 5 && <section className="room-manager-property-wizard-panel"><h3><span>5</span>Plan Units</h3><p className="room-manager-wizard-step-help">Set the number of {getPlannedUnitLabel(propertyDraft.propertyType)} planned for each floor. The app creates those rows for you.</p>{renderPlannedUnitCounts()}</section>}
-            {propertyWizardStep === 6 && <section className="room-manager-property-wizard-panel"><h3><span>6</span>{propertyDraft.propertyType === "bed" ? "Beds & Rent" : "Review Setup"}</h3><p className="room-manager-wizard-step-help">Review the building and planned capacity before saving.</p><div className="room-manager-wizard-review"><div><small>Property type</small><strong>{getPropertyTypeLabel(propertyDraft.propertyType)}</strong></div><div><small>Building</small><strong>{propertyDraft.name || "—"}</strong></div><div><small>Wings</small><strong>{propertyDraftWingNames.length ? propertyDraftWingNames.join(", ") : "No wings"}</strong></div><div><small>Floors</small><strong>{propertyDraftFloorRows.map((row) => `${row.wingName === "No Wing" ? "" : `${row.wingName} · `}${row.floorName}`).join(", ") || "—"}</strong></div><div><small>Planned {getPlannedUnitLabel(propertyDraft.propertyType)}</small><strong>{Object.values(propertyDraft.floorUnitCounts || {}).reduce((total, count) => total + (Number(count) || 0), 0)}</strong></div></div><div className="room-manager-wizard-rent-note">Unit details are set after creating the planned rows. Tenant rent is assigned when you add a tenant.</div></section>}
+            {propertyWizardStep === 5 && !isManualStructureOnlyFlow && <section className="room-manager-property-wizard-panel"><h3><span>5</span>Plan Units</h3><p className="room-manager-wizard-step-help">Set the number of {getPlannedUnitLabel(propertyDraft.propertyType)} planned for each floor. The app creates those rows for you.</p>{renderPlannedUnitCounts()}</section>}
+            {((isManualStructureOnlyFlow && propertyWizardStep === 5) || (!isManualStructureOnlyFlow && propertyWizardStep === 6)) && <section className="room-manager-property-wizard-panel"><h3><span>{propertyWizardStep}</span>Review Setup</h3><p className="room-manager-wizard-step-help">Review the building structure before saving.</p><div className="room-manager-wizard-review"><div><small>Property type</small><strong>{getPropertyTypeLabel(propertyDraft.propertyType)}</strong></div><div><small>Building</small><strong>{propertyDraft.name || "—"}</strong></div><div><small>Wings</small><strong>{propertyDraftWingNames.length ? propertyDraftWingNames.join(", ") : "No wings"}</strong></div><div><small>Floors</small><strong>{propertyDraftFloorRows.map((row) => `${row.wingName === "No Wing" ? "" : `${row.wingName} · `}${row.floorName}`).join(", ") || "—"}</strong></div><div><small>{isManualStructureOnlyFlow ? "Units to add later" : `Planned ${getPlannedUnitLabel(propertyDraft.propertyType)}`}</small><strong>{isManualStructureOnlyFlow ? "Add from Room Manager after saving" : Object.values(propertyDraft.floorUnitCounts || {}).reduce((total, count) => total + (Number(count) || 0), 0)}</strong></div></div><div className="room-manager-wizard-rent-note">{isManualStructureOnlyFlow ? `Building and floors will be saved without unit rows. Add ${getPlannedUnitLabel(propertyDraft.propertyType)} from Room Manager whenever you are ready.` : "Planned unit rows will be created on save. Tenant rent is assigned when you add a tenant."}</div></section>}
           </main>
-          <footer className="room-manager-property-wizard-footer"><button type="button" className="btn btn-outline-secondary" onClick={() => propertyWizardStep === 1 ? (setShowPropertySetup(false), setEditingPropertyKey("")) : setPropertyWizardStep((step) => Math.max(1, step - 1))}>{propertyWizardStep === 1 ? "Cancel" : "← Back"}</button><button type="button" className="btn btn-primary" onClick={goToNextPropertyStep} disabled={propertySaving}>{propertyWizardStep === propertyWizardSteps.length ? (propertySaving ? "Saving…" : editingPropertyKey ? "Save Property" : "Save Property") : <>Next: {propertyWizardSteps[propertyWizardStep]} <span aria-hidden="true">→</span></>}</button></footer>
+          </>}
+          <footer className="room-manager-property-wizard-footer"><button type="button" className="btn btn-outline-secondary" onClick={() => editingPropertyKey || propertyWizardStep === 1 ? (setShowPropertySetup(false), setEditingPropertyKey("")) : setPropertyWizardStep((step) => Math.max(1, step - 1))}>{editingPropertyKey || propertyWizardStep === 1 ? "Cancel" : "? Back"}</button><button type="button" className="btn btn-primary" onClick={editingPropertyKey ? savePropertyLocation : goToNextPropertyStep} disabled={propertySaving}>{editingPropertyKey ? (propertySaving ? "Saving…" : "Save Changes") : propertyWizardStep === propertyWizardSteps.length ? (propertySaving ? "Saving…" : "Save Property") : <>Next: {propertyWizardSteps[propertyWizardStep]} <span aria-hidden="true">?</span></>}</button></footer>
         </div>
       </div>
     </div>
@@ -2965,7 +3109,7 @@ export default function RoomManager() {
                 <div>Unit / Room</div>
                 <div>Room Type</div>
                 <div>Floor</div>
-                <div>Price (₹)</div>
+                <div>Price (?)</div>
                 <div>Actions</div>
               </div>
 
@@ -3230,7 +3374,6 @@ export default function RoomManager() {
       className="container-fluid px-3 px-md-4 py-3 room-manager-page-shell"
     >
       {unitHistoryTarget && <UnitHistoryModal room={unitHistoryTarget.room} bedNo={unitHistoryTarget.bedNo} onClose={() => setUnitHistoryTarget(null)} />}
-      {introductoryLimitReached && <div className="alert alert-info d-flex flex-wrap align-items-center justify-content-between gap-2" role="status"><span>You have added 10 units. Set your unit counts to add more.</span><button type="button" className="btn btn-primary btn-sm" onClick={() => navigate("/profile")}>Set unit counts</button></div>}
       <div className="room-manager-mobile room-manager-mobile-layout d-lg-none">
         <div className="room-manager-mobile-hero">
           <div className="room-manager-mobile-hero-copy">
@@ -3241,20 +3384,16 @@ export default function RoomManager() {
         </div>
 
         <div className="room-manager-mobile-stats">
-          <div className="room-manager-mobile-capacity-card">
-            <span className="room-manager-mobile-summary-icon"><FaBed /></span>
-            <div ><strong style={{textAlign:"left"}}>Registered Unit Capacity</strong>
-              <div className="room-manager-mobile-capacity-values">
-                {allowedTypes.some((type) => type.value === "bed") ? <small>Beds: {unitUsage.beds} / {unitLimits.beds || "—"}</small> : null}
-                {allowedTypes.some((type) => type.value === "room") ? <small>Rooms: {unitUsage.rooms} / {unitLimits.rooms || "—"}</small> : null}
-                {allowedTypes.some((type) => type.value === "shop") ? <small>Shops: {unitUsage.shops} / {unitLimits.shops || "—"}</small> : null}
+          {summaryCards.map((card) => (
+            <article className={`room-manager-mobile-stat-card room-manager-top-card room-manager-top-card--${card.tone}`} key={card.label}>
+              <span className="room-manager-top-card-icon">{card.icon}</span>
+              <div className="room-manager-top-card-copy">
+                <strong className="room-manager-top-card-value">{card.value}</strong>
+                <span className="room-manager-top-card-label">{card.label}</span>
+                {card.detail && <small className="room-manager-top-card-detail">{card.detail}</small>}
               </div>
-            </div>
-          </div>
-          <div className="room-manager-mobile-total-card">
-            <span className="room-manager-mobile-summary-icon"><FaBuilding /></span>
-            <div><strong>Total Properties</strong><b>{propertyLocations.filter((location) => allowedTypes.some((type) => type.value === normalizePropertyType(location.propertyType))).length}</b></div>
-          </div>
+            </article>
+          ))}
         </div>
 
         {/* <div className="room-manager-mobile-actions">
@@ -3523,85 +3662,40 @@ export default function RoomManager() {
       </div>
 
       <div className="room-manager-desktop-layout d-none d-lg-block">
-        <div className="room-manager-desktop-header mb-4">
-          <button
-            type="button"
-            className="btn room-manager-back-btn"
-            onClick={() => handleNavigation("/admin")}
-          >
-            <FaArrowLeft className="me-1" />
-            Back
-          </button>
-
-          <h1 className="room-manager-page-title mb-0">
-            Room &amp; Bed Management
-          </h1>
-        </div>
-
-        <div className="room-manager-header-tools mb-3">
-          <button
-            type="button"
-            className="btn text-white room-manager-top-card-btn"
-            onClick={openQuickAdd}
-          >
-            <FaPlus className="me-1" /> Add Unit
-          </button>
-          <button type="button" className="btn btn-outline-primary ms-2" onClick={openPropertyCreate}>
-            <FaBuilding className="me-1" /> Quick add property
-          </button>
-          <div className="room-manager-header-search">
-            <span className="room-manager-header-search-icon">
-              <FaSearch />
-            </span>
-            <input
-              type="text"
-              name="room-manager-desktop-search"
-              autoComplete="off"
-              autoCorrect="off"
-              autoCapitalize="off"
-              spellCheck="false"
-              className="form-control"
-              placeholder="Search unit / bed / floor / category / wing"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
+        <header className="room-manager-desktop-header">
+          <div className="room-manager-desktop-heading">
+            <span className="room-manager-desktop-heading-icon"><FaBed /></span>
+            <div>
+              <h1>Room &amp; Bed Management</h1>
+              <p>Manage your property, rooms and beds</p>
+            </div>
           </div>
-
-          {/* <button
-                type="button"
-                className="btn btn-outline-secondary room-manager-outline-btn"
-                onClick={openCategoryEditor}
-                title="Edit category names"
-              >
-                <FaEdit className="room-manager-outline-btn-icon" />
-                ✏️ Edit Categories
-              </button> */}
-        </div>
+          <div className="room-manager-desktop-actions">
+            <div className="room-manager-header-search room-manager-header-search--hero">
+              <span className="room-manager-header-search-icon"><FaSearch /></span>
+              <input
+                type="text"
+                name="room-manager-desktop-search"
+                autoComplete="off"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck="false"
+                className="form-control"
+                placeholder="Search property, room / shop, bed, floor, wing, category or tenant"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+            </div>
+          <button type="button" className="room-manager-add-property-hero" onClick={openPropertyCreate}>
+            <FaPlus /> Add Property
+          </button>
+          </div>
+        </header>
       </div>
       <div className="room-manager-desktop-content">
-      <div className="col-12 col-lg room-manager-top-strip-title">
-        <h1 className="room-manager-top-strip-page-title mb-0">
-          Room &amp; Bed Management
-        </h1>
-      </div>
       <div className="row g-3 mb-4 room-manager-top-strip">
-
-        {/* Quick Add */}
         <div className="col-12 col-lg-6 room-manager-top-strip-action">
-          <div className="d-flex align-items-center justify-content-between gap-2 mb-3">
-            <button
-              type="button"
-              className="btn text-white room-manager-top-card-btn"
-              onClick={openQuickAdd}
-            >
-              <FaPlus className="me-1" /> Add Unit
-            </button>
-            <button type="button" className="btn btn-outline-primary room-manager-top-card-btn ms-2" onClick={openPropertyCreate}>
-              <FaBuilding className="me-1" /> Quick add property
-            </button>
-          </div>
-
-          {false ? (
+        {false ? (
             <div className="d-grid" style={{ gap: "8px" }}>
               <select
                 className="form-select form-select-sm"
@@ -3692,16 +3786,16 @@ export default function RoomManager() {
                   }
                 />)}
 
-              {/* ✅ NEW FIELD: BED PRICE */}
+              {/* ? NEW FIELD: BED PRICE */}
               <input
                 type="number"
                 className="form-control form-control-sm"
                 placeholder={
                   roomForm.propertyType === "bed"
-                    ? "Bed Price (₹)"
+                    ? "Bed Price (?)"
                     : roomForm.propertyType === "shop"
-                      ? "Shop Price (₹)"
-                      : "Flat Price (₹)"
+                      ? "Shop Price (?)"
+                      : "Flat Price (?)"
                 }
                 value={roomForm.bedPrice}
                 onChange={(e) =>
@@ -3726,73 +3820,33 @@ export default function RoomManager() {
 
 
         {/* KPI – Primary Total */}
-        <div className="col-12 col-md-4 col-lg-4  room-manager-quota-col">
+        {/* <div className="col-12 col-md-4 col-lg-4  room-manager-quota-col">
           <div className="room-manager-quota-summary">
             <strong>Registered unit capacity</strong>
             {allowedTypes.some((type) => type.value === "bed") ? (
-              <span>Beds: {unitUsage.beds} / {unitLimits.beds || "—"}</span>
+              <span>Beds: {unitUsage.beds}{unlimitedTrial ? "" : ` / ${unitLimits.beds || "—"}`}</span>
             ) : null}
             {allowedTypes.some((type) => type.value === "room") ? (
-              <span>Rooms: {unitUsage.rooms} / {unitLimits.rooms || "—"}</span>
+              <span>Rooms: {unitUsage.rooms}{unlimitedTrial ? "" : ` / ${unitLimits.rooms || "—"}`}</span>
             ) : null}
             {allowedTypes.some((type) => type.value === "shop") ? (
-              <span>Shops: {unitUsage.shops} / {unitLimits.shops || "—"}</span>
+              <span>Shops: {unitUsage.shops}{unlimitedTrial ? "" : ` / ${unitLimits.shops || "—"}`}</span>
             ) : null}
           </div>
-        </div>
+        </div> */}
 
-        <div className="col-12 col-md-2 col-lg-2  room-manager-stat-col">
-          <div className="bg-white border rounded-3 shadow-sm p-3 h-100 d-flex align-items-center room-manager-top-card room-manager-top-card--rooms room-manager-top-card-inner">
-            <div
-              className="rounded-circle d-inline-flex justify-content-center align-items-center me-3 room-manager-top-card-icon"
-            >
-              <FaBuilding />
-            </div>
-            <div>
-              <div className="small room-manager-top-card-label">{statsMeta.primaryLabel}</div>
-              <div className="fw-bold fs-4 room-manager-top-card-value">{statsMeta.primaryValue}</div>
-            </div>
+        {summaryCards.map((card) => (
+          <div className="col-12 col-md-2 col-lg-3 room-manager-stat-col" key={card.label}>
+            <article className={`room-manager-top-card room-manager-top-card--${card.tone}`}>
+              <span className="room-manager-top-card-icon">{card.icon}</span>
+              <div className="room-manager-top-card-copy">
+                <strong className="room-manager-top-card-value">{card.value}</strong>
+                <span className="room-manager-top-card-label">{card.label}</span>
+                {card.detail && <small className="room-manager-top-card-detail">{card.detail}</small>}
+              </div>
+            </article>
           </div>
-        </div>
-
-        {/* KPI – Secondary Total */}
-        <div className="col-12 col-md-2  col-lg-2 room-manager-stat-col">
-          <div className="bg-white border rounded-3 shadow-sm p-3 h-100 d-flex align-items-center room-manager-top-card room-manager-top-card--beds room-manager-top-card-inner">
-            <div
-              className="rounded-circle d-inline-flex justify-content-center align-items-center me-3 room-manager-top-card-icon"
-            >
-              <FaBed />
-            </div>
-            <div>
-              <div className="small room-manager-top-card-label">{statsMeta.secondaryLabel}</div>
-              <div className="fw-bold fs-4 room-manager-top-card-value">{statsMeta.secondaryValue}</div>
-            </div>
-          </div>
-        </div>
-
-        <div className="col-12 col-md-2 col-lg-2 room-manager-stat-col">
-          <div className="bg-white border rounded-3 shadow-sm p-3 h-100 d-flex align-items-center room-manager-top-card room-manager-top-card--occupied room-manager-top-card-inner">
-            <div className="rounded-circle d-inline-flex justify-content-center align-items-center me-3 room-manager-top-card-icon">
-              <FaBed />
-            </div>
-            <div>
-              <div className="small room-manager-top-card-label">Occupied</div>
-              <div className="fw-bold fs-4 room-manager-top-card-value">{occupancyStats.occupied}</div>
-            </div>
-          </div>
-        </div>
-
-        <div className="col-12 col-md-2 col-lg-2 room-manager-stat-col">
-          <div className="bg-white border rounded-3 shadow-sm p-3 h-100 d-flex align-items-center room-manager-top-card room-manager-top-card--vacant room-manager-top-card-inner">
-            <div className="rounded-circle d-inline-flex justify-content-center align-items-center me-3 room-manager-top-card-icon">
-              <FaBed />
-            </div>
-            <div>
-              <div className="small room-manager-top-card-label">Vacant</div>
-              <div className="fw-bold fs-4 room-manager-top-card-value">{occupancyStats.vacant}</div>
-            </div>
-          </div>
-        </div>
+        ))}
       </div>
 
       {/* Rooms & Beds Table */}
@@ -3912,7 +3966,7 @@ export default function RoomManager() {
                       >
                         <td className="fw-semibold">
                           {(() => {
-                            const { bg, fg } = roomColors(room); // ✅ PASS room here
+                            const { bg, fg } = roomColors(room); // ? PASS room here
                             return (
                               <span className="roomNoPill" style={{ "--bg": bg, "--fg": fg }}>
                                 {room.roomNo}
@@ -3966,7 +4020,7 @@ export default function RoomManager() {
                                     <small className="text-muted">
                                       Price:{" "}
                                       {bed.price != null
-                                        ? `₹${Number(bed.price).toLocaleString(
+                                        ? `?${Number(bed.price).toLocaleString(
                                           "en-IN"
                                         )}`
                                         : "—"}
@@ -4006,7 +4060,7 @@ export default function RoomManager() {
                             + Add Bed
                           </button>}
 
-                          {/* 🔴 NEW: one Delete Bed button per room */}
+                          {/* ?? NEW: one Delete Bed button per room */}
                           {(room.propertyType || "bed") === "bed" && room.beds?.length > 0 && (
                             <button
                               className="btn btn-sm btn-outline-primary ms-2"
@@ -4096,7 +4150,7 @@ export default function RoomManager() {
               }}
             >
               <div
-                className="modal-header bg-white sticky-top py-2 room-manager-bed-header"
+                className="modal-header sticky-top py-2 room-manager-bed-header room-manager-themed-bed-header"
                 style={{ zIndex: 1 }}
               >
                 <h6 className="modal-title mb-0">
@@ -4104,10 +4158,11 @@ export default function RoomManager() {
                 </h6>
                 <button
                   type="button"
-                  className="btn-close p-0"
+                  className="room-manager-modal-close-x room-manager-themed-close"
+                  aria-label="Close"
                   onClick={() => setShowAddBedModal(false)}
                 >
-                  x
+                  ×
                 </button>
 
               </div>
@@ -4174,7 +4229,7 @@ export default function RoomManager() {
                     Price <span className="text-muted">(optional)</span>
                   </label>
                   <div className="input-group input-group-sm">
-                    <span className="input-group-text">₹</span>
+                    <span className="input-group-text">?</span>
                     <input
                       type="number"
                       className="form-control"
@@ -4197,7 +4252,7 @@ export default function RoomManager() {
                 </div>
               </div>
 
-              <div className="modal-footer py-2 flex-wrap gap-2 room-manager-bed-footer">
+                <div className="modal-footer py-2 flex-wrap gap-2 room-manager-bed-footer room-manager-themed-bed-footer">
                 <button
                   className="btn btn-secondary w-100 w-sm-auto"
                   onClick={() => setShowAddBedModal(false)}
@@ -4220,21 +4275,21 @@ export default function RoomManager() {
       {/* Set Placeholder Unit Details Modal - aligned with mobile Units flow */}
       {setupTarget &&
         renderModal(
-          <div style={modalBackdropStyle}>
+          <div className="room-manager-unit-details-backdrop" style={modalBackdropStyle}>
             <div
-              className="modal-dialog modal-dialog-centered room-manager-edit-dialog"
+              className="modal-dialog modal-dialog-centered room-manager-edit-dialog room-manager-unit-details-dialog"
               style={{ width: "100%", maxWidth: "600px", margin: "0 12px" }}
               onClick={(e) => e.stopPropagation()}
               role="dialog"
               aria-modal="true"
             >
               <div
-                className="modal-content roommodal room-manager-edit-modal"
+                className="modal-content roommodal room-manager-edit-modal room-manager-unit-details-modal"
                 style={{ maxHeight: "calc(100vh - 24px)", display: "flex", flexDirection: "column" }}
               >
-                <div className="modal-header bg-white sticky-top py-2 room-manager-edit-header" style={{ zIndex: 1 }}>
+                <div className="modal-header sticky-top py-2 room-manager-edit-header room-manager-unit-details-header" style={{ zIndex: 1 }}>
                   <div>
-                    <h6 className="modal-title mb-0">
+                    <h6 className="modal-title mb-0 room-manager-unit-details-title">
                       {isPlaceholderUnit(setupTarget) ? "Set unit details" : "Edit unit details"}
                     </h6>
                     <small className="text-muted">
@@ -4250,10 +4305,10 @@ export default function RoomManager() {
                       </span>
                     </div>
                   </div>
-                  <button type="button" className="btn-close btn-close1 p-1" onClick={closeSetupUnitModal}>x</button>
+                  <button type="button" className="btn-close btn-close1 p-1 room-manager-unit-details-close" onClick={closeSetupUnitModal} aria-label="Close">×</button>
                 </div>
 
-                <div className="modal-body py-2 room-manager-edit-body" style={{ overflowY: "auto" }}>
+                <div className="modal-body py-2 room-manager-edit-body room-manager-unit-details-body" style={{ overflowY: "auto" }}>
                   {setupLoading && <div className="alert alert-light border py-2 mb-2" role="status">Refreshing saved unit details…</div>}
                   {(() => {
                     const targetType = normalizePropertyType(setupTarget.propertyType);
@@ -4352,21 +4407,6 @@ export default function RoomManager() {
                           </div>
                         </>}
 
-                        {(pendingSetup || targetType !== "bed") && (
-                          <div className="mb-2">
-                            <label className="form-label mb-1">{labels.price}</label>
-                            <div className="input-group input-group-sm">
-                              <span className="input-group-text">Rs.</span>
-                            <input type="number" className="form-control" value={setupForm.price} onChange={(e) => setSetupForm((prev) => ({ ...prev, price: e.target.value }))} min="0" inputMode="decimal" placeholder="Optional — example: 5000" />
-                            </div>
-                            <small className="text-muted">
-                              {pendingSetup
-                                ? "Monthly rent is optional. You can add it now or later."
-                                : "Monthly rent is optional. Leave blank to remove it."}
-                            </small>
-                          </div>
-                        )}
-
                         {targetType === "bed" && !pendingSetup && (
                           <div className="alert alert-light border small mb-2">
                             Bed category and bed rent are edited separately from each bed row, matching the mobile app.
@@ -4377,7 +4417,7 @@ export default function RoomManager() {
                   })()}
                 </div>
 
-                <div className="modal-footer py-2 flex-wrap gap-2 room-manager-edit-footer">
+                <div className="modal-footer py-2 flex-wrap gap-2 room-manager-edit-footer room-manager-unit-details-footer">
                   <button className="btn btn-secondary w-100 w-sm-auto" onClick={closeSetupUnitModal} disabled={setupSaving}>Cancel</button>
                   <button className="btn btn-primary w-100 w-sm-auto" onClick={saveSetupUnit} disabled={setupSaving || setupLoading}>
                     {setupLoading ? "Loading details..." : setupSaving ? "Saving..." : isPlaceholderUnit(setupTarget) ? "Save details" : "Save changes"}
@@ -4425,10 +4465,11 @@ export default function RoomManager() {
                   </h6>
                   <button
                     type="button"
-                    className="btn-close btn-close1 p-1"
+                  className="room-manager-modal-close-x room-manager-themed-close"
+                  aria-label="Close"
                     onClick={() => setShowEditModal(false)}
                   >
-                    x
+                    ×
                   </button>
                 </div>
 
@@ -4450,10 +4491,10 @@ export default function RoomManager() {
 
 
 
-                  {/* ✅ Price */}
+                  {/* ? Price */}
                   <label className="form-label mb-1">Price</label>
                   <div className="input-group input-group-sm">
-                    <span className="input-group-text">₹</span>
+                    <span className="input-group-text">?</span>
                     <input
                       type="number"
                       className="form-control"
@@ -4490,7 +4531,7 @@ export default function RoomManager() {
           </div>
         )}
 
-      {/* 🔴 NEW: Delete Bed Modal */}
+      {/* ?? NEW: Delete Bed Modal */}
       {showDeleteBedModal && renderModal(
         <div
           style={modalBackdropStyle}

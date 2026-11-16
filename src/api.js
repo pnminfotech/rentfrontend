@@ -8,7 +8,7 @@ const LOCAL_HOSTS = new Set([
   "::1",
 ]);
 
-const DEFAULT_LOCAL_API_BASE = "http://localhost:8000/api";
+const DEFAULT_LOCAL_API_BASE = "https://rentmobile-api.pnminfotech.com/api";
 function getDefaultApiBase() {
   if (
     typeof window !== "undefined" &&
@@ -17,9 +17,7 @@ function getDefaultApiBase() {
     return DEFAULT_LOCAL_API_BASE;
   }
 
-  // Production uses the API hosted at the domain root. This keeps the web
-  // application working when it is served from a subfolder such as
-  // /rentmanagementsoftware.
+  // Without an explicit API base, use the API at the current domain root.
   if (typeof window !== "undefined") {
     return `${window.location.origin}/api`;
   }

@@ -1,20 +1,20 @@
-# Bluehost deployment
+# Hostinger frontend deployment
 
-The production build is configured for:
+The production frontend is configured for the domain root:
 
-`https://pnminfotech.com/rentmanagementsoftware`
+`https://ezyrentportal.com/`
 
-Run `npm run build` from this folder. Upload the **contents** of the generated `build` folder to:
+## Build and upload
 
-`public_html/rentmanagementsoftware/`
+1. Run `npm run build` from this folder.
+2. Upload the **contents** of the generated `build` folder to Hostinger's `public_html/` directory for `ezyrentportal.com`. Do not upload the `build` folder itself as a nested directory.
+3. Include the generated `.htaccess` file in `public_html/`. It routes direct links such as `/login`, `/roommanager`, and `/tenant-intake` back to the React application.
+4. Confirm the domain has HTTPS enabled before testing sign-in and tenant invite links.
 
-Keep the generated `.htaccess` file in that folder. It lets direct links such as `/rentmanagementsoftware/login` and `/rentmanagementsoftware/tenant-intake` open the React application.
+## API and backend configuration
 
-The production web build sends API requests to `ttps://rentmobile-api.pnminfotech.com/api`. The backend deployment must allow `https://pnminfotech.com` in CORS and use these values:
+The frontend continues to call `https://rentmobile-api.pnminfotech.com/api` as configured in `.env.production`. If the backend is moved, update `REACT_APP_API_BASE` and `REACT_APP_API_ORIGIN` before building.
 
-```env
-FRONTEND_BASENAME=rentmanagementsoftware
-TENANT_FORM_BASE_URL=https://pnminfotech.com/rentmanagementsoftware/tenant-intake
-```
+The backend must allow `https://ezyrentportal.com` (and `https://www.ezyrentportal.com` if the `www` domain will be used) in its CORS configuration. Its frontend base path should be empty because the app now runs at the domain root. Set the tenant form base URL to:
 
-If the backend is hosted on another domain or subdomain, update `REACT_APP_API_BASE` and `REACT_APP_API_ORIGIN` in `.env.production` before building.
+`https://ezyrentportal.com/tenant-intake`

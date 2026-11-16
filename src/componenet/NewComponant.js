@@ -252,7 +252,7 @@ function buildApiUrl(base) {
 
   const fallbackOrigin =
     typeof window !== "undefined" && LOCAL_HOSTS.has(window.location.hostname)
-      ? " http://localhost:8000/"
+      ? " https://rentmobile-api.pnminfotech.com/"
       : " ttps://rentmobile-api.pnminfotech.com/";
 
   return new URL("/api/", fallbackOrigin).toString();
@@ -6423,7 +6423,7 @@ const updateBreakdownItemStatus = async (item, nextStatus) => {
   // }, []);
   // useEffect(() => {
   //   axios
-  //     .get("  http://localhost:8000/api/rooms")
+  //     .get("  https://rentmobile-api.pnminfotech.com/api/rooms")
   //     .then((response) => setRoomsData(response.data))
   //     .catch((err) => console.error("Failed to fetch rooms:", err));
   // }, []);

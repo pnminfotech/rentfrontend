@@ -302,7 +302,7 @@ const FormDownload = ({ formData }) => {
     return pages;
   }, [hostelRules.content]);
 
-  const BASE_URL = " https://rentmobile-api.pnminfotech.com/";
+  const BASE_URL = " http://localhost:8000/";
 
   useEffect(() => {
     let cancelled = false;
@@ -633,7 +633,7 @@ const FormDownload = ({ formData }) => {
       return ct.startsWith("image/") || /\.(png|jpe?g|webp|gif)$/i.test(name);
     };
 
-    const BASE_URL = " https://rentmobile-api.pnminfotech.com/"; // change to your backend URL
+    const BASE_URL = " http://localhost:8000/"; // change to your backend URL
 
     const getUrl = (d) => {
       const raw =

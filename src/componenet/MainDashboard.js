@@ -1502,6 +1502,34 @@ useEffect(() => {
     { title: "Bed Occupancy", icon: BedDouble, total: summary.beds.totalUnits || 0, first: ["Occupied", summary.beds.occupied || 0], second: ["Vacant", summary.beds.totalVacant || 0], firstColor: "#ffad00", secondColor: "#1355b4" },
   ];
 
+  const mobileRentTrend = (() => {
+    const now = new Date();
+    const months = Array.from({ length: 6 }, (_, index) => {
+      const date = new Date(now.getFullYear(), now.getMonth() - (5 - index), 1);
+      return {
+        year: date.getFullYear(),
+        month: date.getMonth(),
+        label: date.toLocaleDateString("en-IN", { month: "short" }),
+        amount: 0,
+      };
+    });
+
+    (tenantsState || []).forEach((tenant) => {
+      (tenant?.rents || []).forEach((rent) => {
+        const ym = getRentYM(rent);
+        if (!ym) return;
+        const target = months.find((item) => item.year === ym.y && item.month === ym.m);
+        if (target) target.amount += getPaidAmt(rent, getMonthlyRent(tenant));
+      });
+    });
+
+    const maxAmount = Math.max(...months.map((item) => item.amount), 1);
+    return months.map((item) => ({
+      ...item,
+      height: item.amount > 0 ? Math.max(12, Math.round((item.amount / maxAmount) * 100)) : 4,
+    }));
+  })();
+
   return (
     <div className="main-dashboard">
       <div className="md-topbar">
@@ -1611,12 +1639,81 @@ useEffect(() => {
           </ul>
         </div>
         <div className="md-sidebar-footer">
-          <div className="md-building-art"><Building2 /></div>
+          <div className="md-building-art">
+            <img src={hostelWelcomeImage} alt="Hostel building" />
+          </div>
           <span>v1.0.0</span>
         </div>
       </nav>
 
       <main className="md-shell">
+        <section className="md-mobile-dashboard" aria-label="Mobile dashboard">
+          <div className="md-mobile-hero">
+            <div className="md-mobile-hero-bar">
+              <button type="button" onClick={() => setOpen(true)} aria-label="Open menu">
+                <span /><span /><span />
+              </button>
+              <div className="md-mobile-brand-copy"><strong>Hostel Manager</strong><small>Tenant • Rent • Bills • Maintenance</small></div>
+            </div>
+            <div className="md-mobile-greeting">
+              <div><h1>{currentTime.getHours() < 12 ? "Good Morning" : currentTime.getHours() < 17 ? "Good Afternoon" : "Good Evening"}, Admin <span>👋</span></h1><p>Here’s your hostel overview</p></div>
+              <img src={hostelWelcomeImage} alt="Hostel" />
+            </div>
+          </div>
+
+          <div className="md-mobile-body">
+            <div className="md-mobile-kpis">
+              {[
+                ["Total Beds", summary.beds.totalUnits || 0, BedDouble, "blue", () => setShowTotalModal(true)],
+                ["Vacant", summary.beds.totalVacant || 0, BedDouble, "gold", () => findVacantUnits()],
+                ["Rent Pending", summary.rent.pending || 0, CreditCard, "pink", () => setShowPendingRentModal(true)],
+                ["Upcoming Leaves", futureLeaveCount, CalendarDays, "purple", () => setShowFutureLeaveModal(true)],
+              ].map(([label, value, Icon, tone, action]) => <button type="button" className={tone} key={label} onClick={action}><Icon /><strong>{value}</strong><span>{label}</span></button>)}
+            </div>
+
+            <article className="md-mobile-payment-card">
+              <div className="md-mobile-section-title"><span><FiBarChart2 /> Overall Payment Status</span><small>This Month</small></div>
+              {(() => {
+                const paid = Number(summary.rent.deposits || 0);
+                const pending = Number(summary.rent.pending || 0);
+                const total = paid + pending;
+                const paidPct = percent(paid, total);
+                return <div className="md-mobile-payment-content">
+                  <div className="md-mobile-ring" style={{ "--paid": `${paidPct * 3.6}deg` }}><span><strong>{paidPct}%</strong><small>Paid</small></span></div>
+                  <div className="md-mobile-payment-legend"><span><i className="paid" />Paid <strong>{paidPct}% ({paid})</strong></span><span><i className="pending" />Pending <strong>{100 - paidPct}% ({pending})</strong></span><hr /><span>Total <strong>{total}</strong></span></div>
+                </div>;
+              })()}
+            </article>
+
+            <div className="md-mobile-bill-grid">
+              <button type="button" className="light" onClick={() => quickNavigate("light", "/light-bill")}><div><Zap /><strong>Light Bills</strong></div><p><span><b>{summary.light.paid || 0}</b>Paid</span><span><b>{summary.light.pending || 0}</b>Pending</span></p></button>
+              <button type="button" className="maintenance" onClick={() => openTrackerSectionFromDashboard("expenses")}><div><Wrench /><strong>Maintenance</strong><ChevronRight /></div><p><span><b>{summary.maintenance.pending || 0}</b>Pending</span></p></button>
+            </div>
+
+            <article className="md-mobile-quick-card">
+              <h2><Zap /> Quick Actions</h2>
+              <div>{[
+                ["Add Tenant", UserPlus, "blue", openAddTenantFromDashboard],
+                ["Collect Rent", CreditCard, "green", openRentTrackerFromDashboard],
+                ["Reports", FileBarChart, "purple", handleDownloadCategoryReport],
+                ["Raise Request", Wrench, "orange", () => quickNavigate("maintenance", "/maintenance")],
+              ].map(([label, Icon, tone, action]) => <button type="button" className={tone} key={label} onClick={action}><Icon /><span>{label}</span></button>)}</div>
+            </article>
+
+            <div className="md-mobile-insights">
+              <article><h2><FiBarChart2 /> Rent Trend <small>Last 6 Months</small></h2><div className="md-mobile-bars">{mobileRentTrend.map((item) => <span key={`${item.year}-${item.month}`} style={{ height: `${item.height}%` }} title={`${item.label}: ₹${item.amount.toLocaleString("en-IN")}`} aria-label={`${item.label}: ₹${item.amount.toLocaleString("en-IN")} collected`}><b>{item.amount > 0 ? `₹${item.amount >= 100000 ? `${(item.amount / 100000).toFixed(1)}L` : item.amount >= 1000 ? `${Math.round(item.amount / 1000)}k` : item.amount}` : ""}</b><i>{item.label}</i></span>)}</div></article>
+              <article><h2><Building2 /> Property Health</h2><ul><li>● Rent Collection <strong>{percent(summary.rent.deposits || 0, (summary.rent.deposits || 0) + (summary.rent.pending || 0))}%</strong></li><li>● Light Bills <strong>{percent(summary.light.paid || 0, totalLight)}%</strong></li><li className="warn">● Maintenance <strong>Pending</strong></li><li>● Occupancy <strong>{percent(summary.beds.occupied || 0, summary.beds.totalUnits || 0)}%</strong></li></ul></article>
+            </div>
+          </div>
+
+          <nav className="md-mobile-bottom-nav" aria-label="Mobile navigation">
+            <button type="button" onClick={openRentTrackerFromDashboard}><BedDouble /><span>Tenants</span></button>
+            <button type="button" onClick={openRentTrackerFromDashboard}><CreditCard /><span>Payments</span></button>
+            <button type="button" onClick={() => openTrackerSectionFromDashboard("expenses")}><Wrench /><span>Maintenance</span></button>
+            <button type="button" onClick={() => setOpen(true)}><Layers3 /><span>More</span></button>
+          </nav>
+        </section>
+
         <header className="md-header">
           <div className="md-title-block">
             <h1>Dashboard</h1>

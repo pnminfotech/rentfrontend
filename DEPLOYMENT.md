@@ -13,7 +13,7 @@ The production frontend is configured for the domain root:
 
 ## API and backend configuration
 
-The frontend continues to call `https://rentmobile-api.pnminfotech.com/api` as configured in `.env.production`. If the backend is moved, update `REACT_APP_API_BASE` and `REACT_APP_API_ORIGIN` before building.
+The frontend continues to call `http://localhost:8000/api` as configured in `.env.production`. If the backend is moved, update `REACT_APP_API_BASE` and `REACT_APP_API_ORIGIN` before building.
 
 The backend must allow `https://ezyrentportal.com` (and `https://www.ezyrentportal.com` if the `www` domain will be used) in its CORS configuration. Its frontend base path should be empty because the app now runs at the domain root. Set the tenant form base URL to:
 
